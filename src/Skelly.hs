@@ -1,4 +1,22 @@
-module Skelly where
+module Skelly (
+  runAdd,
+  runBuild,
+  runClean,
+  runRun,
+  runTest,
+) where
 
-message :: String
-message = "Hello world"
+runAdd :: IO ()
+runAdd = putStrLn "ADD"
+
+runBuild :: IO ()
+runBuild = putStrLn "BUILD"
+
+runClean :: IO ()
+runClean = putStrLn "CLEAN"
+
+runRun :: IO ()
+runRun = putStrLn "RUN"
+
+runTest :: IO ()
+runTest = putStrLn "TEST"
