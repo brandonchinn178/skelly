@@ -8,3 +8,4 @@ ghc = ">= 9.6 && < 9.8"
 [dependencies]
 base = "< 5"
 optparse-applicative = "< 1"
+text = "< 3"

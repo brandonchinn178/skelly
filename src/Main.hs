@@ -1,18 +1,18 @@
 {-# LANGUAGE RecordWildCards #-}
 
 import Options.Applicative
-import Skelly
+import Skelly.CLI.Command
+import Skelly.CLI.CommandAdd
+import Skelly.CLI.CommandBuild
+import Skelly.CLI.CommandClean
+import Skelly.CLI.CommandRun
+import Skelly.CLI.CommandTest
+import Skelly.Core.Logging (LogLevel (..))
 
 data Options = Options
-  { cliCommand :: Command
+  { cliCommand :: ParsedCommand
+  , cliVerbose :: Bool
   }
-
-data Command
-  = Add
-  | Build
-  | Clean
-  | Run
-  | Test
 
 parseOptions :: IO Options
 parseOptions =
@@ -25,32 +25,33 @@ parseOptions =
     optionsParser =
       Options
         <$> commandParser
+        <*> verboseParser
 
     commandParser =
       subparser . mconcat $
-        [ command "add" . info (pure Add) . mconcat $
-            [ progDesc "Add a dependency to hsproject.toml"
+        [ command cmdName . info (fromCommand cmd) . mconcat $
+            [ progDesc cmdDesc
             ]
-        , command "build" . info (pure Build) . mconcat $
-            [ progDesc "Build a Haskell project"
+        | cmd@Command{..} <-
+            [ commandAdd
+            , commandBuild
+            , commandClean
+            , commandRun
+            , commandTest
             ]
-        , command "clean" . info (pure Clean) . mconcat $
-            [ progDesc "Clean build artifacts"
-            ]
-        , command "run" . info (pure Run) . mconcat $
-            [ progDesc "Run a built executable"
-            ]
-        , command "test" . info (pure Test) . mconcat $
-            [ progDesc "Run the project tests"
-            ]
+        ]
+
+    verboseParser =
+      switch . mconcat $
+        [ long "verbose"
+        , short 'v'
+        , help "Output more verbose logs"
         ]
 
 main :: IO ()
 main = do
   Options{..} <- parseOptions
-  case cliCommand of
-    Add -> runAdd
-    Build -> runBuild
-    Clean -> runClean
-    Run -> runRun
-    Test -> runTest
+  executeCommand cliCommand $
+    SharedOptions
+      { logLevel = if cliVerbose then LevelDebug else LevelInfo
+      }

@@ -67,6 +67,7 @@ class HsProject(NamedTuple):
         lines += [
             f"library",
             f"  default-language: Haskell2010",
+            f"  default-extensions: ImportQualifiedPost",
             f"  hs-source-dirs: {path_to_top}/src",
             f"  exposed-modules:",
           *(f"    {s}" for s in modules),
@@ -78,6 +79,7 @@ class HsProject(NamedTuple):
         lines += [
             f"executable {name}",
             f"  default-language: Haskell2010",
+            f"  default-extensions: ImportQualifiedPost",
             f"  main-is: {path_to_top}/src/Main.hs",
             f"  build-depends:",
             f"    {name},",
@@ -113,7 +115,7 @@ class HsProject(NamedTuple):
     def get_modules(self) -> list[str]:
         modules = []
 
-        for f in SRC_DIR.rglob("*"):
+        for f in SRC_DIR.rglob("*.hs"):
             f = f.relative_to(SRC_DIR)
 
             if f.name == "Main.hs":
