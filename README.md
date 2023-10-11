@@ -8,6 +8,24 @@ Features:
 * Built-in test runner
 * CLI-driven workflow
 
+## Usage
+
+TODO
+
+## Bootstrap
+
+If you don't already have Skelly installed, you can build Skelly with Cabal:
+
+```bash
+bootstrap/build.py
+```
+
+Then run any normal Skelly commands as
+
+```bash
+bootstrap/dist/skelly --help
+```
+
 ## Roadmap
 
 MVP:
