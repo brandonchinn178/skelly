@@ -13,6 +13,11 @@ module Skelly.Core.Logging (
   logWarn,
   logError,
 
+  -- ** Modifiers
+  modifyMessage,
+  prependMessage,
+  addContext,
+
   -- * Low level API
   LogLevel (..),
 ) where
@@ -61,3 +66,12 @@ logWarn service = doLog service LevelWarn
 
 logError :: Service -> Text -> IO ()
 logError service = doLog service LevelError
+
+modifyMessage :: (Text -> Text) -> Service -> Service
+modifyMessage f service = service{doLog = \lvl msg -> doLog service lvl (f msg)}
+
+prependMessage :: Text -> Service -> Service
+prependMessage s = modifyMessage (s <>)
+
+addContext :: Text -> Service -> Service
+addContext label = prependMessage $ "[" <> label <> "] "
