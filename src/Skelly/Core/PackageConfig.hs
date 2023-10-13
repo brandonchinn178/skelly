@@ -1,4 +1,4 @@
-{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -6,11 +6,19 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Skelly.Core.PackageConfig (
+  -- * Types
   PackageConfig,
+  LibraryInfo (..),
+  BinaryInfo (..),
+  SharedInfo (..),
+
+  -- * Getters
   packageName,
   packageVersion,
   packageToolchainGHC,
   packageDependencies,
+  packageLibraries,
+  packageBinaries,
 
   -- * Methods
   loadPackageConfig,
@@ -19,8 +27,8 @@ module Skelly.Core.PackageConfig (
   addDependency,
 ) where
 
-import Data.Map (Map)
-import Data.Map qualified as Map
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Skelly.Core.Error (SkellyError (..))
@@ -50,8 +58,31 @@ data ParsedPackageConfig = ParsedPackageConfig
   { _packageName :: Text
   , _packageVersion :: Version
   , _packageToolchainGHC :: VersionRange
-  , _packageDependencies :: Map Text VersionRange
+  , _packageDependencies :: DependencyMap
+  , _packageLibraries :: Map Text LibraryInfo
+  , _packageBinaries :: Map Text BinaryInfo
   }
+
+type DependencyMap = Map Text VersionRange
+
+-- TODO: add ghc options
+-- TODO: add default extensions
+data SharedInfo = SharedInfo
+  { sourceDirs :: [FilePath]
+  , dependencies :: DependencyMap
+  }
+  deriving (Show)
+
+data LibraryInfo = LibraryInfo
+  { sharedInfo :: SharedInfo
+  }
+  deriving (Show)
+
+data BinaryInfo = BinaryInfo
+  { sharedInfo :: SharedInfo
+  , mainFile :: FilePath
+  }
+  deriving (Show)
 
 loadPackageConfig :: Logging.Service -> IO PackageConfig
 loadPackageConfig loggingService = do
@@ -79,12 +110,15 @@ loadPackageConfig' configPath = do
   pure PackageConfig{..}
 
 decodeParsedConfig :: TOML.Decoder ParsedPackageConfig
-decodeParsedConfig =
+decodeParsedConfig = do
+  packageDeps <- TOML.getFieldsWith decodeDependencies ["skelly", "dependencies"]
   pure ParsedPackageConfig
     <*> TOML.getFields ["skelly", "package", "name"]
     <*> TOML.getFieldsWith decodeVersion ["skelly", "package", "version"]
     <*> TOML.getFieldsWith decodeVersionRange ["skelly", "toolchain", "ghc"]
-    <*> TOML.getFieldsWith decodeDependencies ["skelly", "dependencies"]
+    <*> pure packageDeps
+    <*> decodeLibraries packageDeps
+    <*> decodeBinaries packageDeps
   where
     decodeVersion :: TOML.Decoder Version
     decodeVersion = TOML.makeDecoder $ \v ->
@@ -104,10 +138,47 @@ decodeParsedConfig =
             Nothing -> TOML.invalidValue "Invalid version range" v
         _ -> TOML.typeMismatch v
 
-    decodeDependencies :: TOML.Decoder (Map Text VersionRange)
+    decodeDependencies :: TOML.Decoder DependencyMap
     decodeDependencies = TOML.makeDecoder $ \case
       TOML.Table table -> traverse (TOML.runDecoder decodeVersionRange) table
       v -> TOML.typeMismatch v
+
+    -- TODO: parse from [[skelly.lib]]
+    -- TODO: get deps in [skelly.lib.dependencies] if present
+    -- TODO: default name: same name as package
+    -- TODO: error if duplicate names
+    decodeLibraries :: DependencyMap -> TOML.Decoder (Map Text LibraryInfo)
+    decodeLibraries deps =
+      pure . Map.singleton "skelly" $
+        LibraryInfo
+          { sharedInfo =
+              SharedInfo
+                { sourceDirs = ["src"]
+                , dependencies = deps
+                }
+          }
+
+    -- TODO: parse from [[skelly.bin]]
+    -- TODO: default name: same name as package
+    -- TODO: default mainFile:
+    --         if one bin => src/Main.hs
+    --         if directory exists => src/bin/<name>/Main.hs
+    --         otherwise => src/bin/<name>.hs
+    -- TODO: default sourceDirs:
+    --         if directory exists => [src/bin/<name>/]
+    --         otherwise => []
+    -- TODO: error if duplicate names
+    decodeBinaries :: DependencyMap -> TOML.Decoder (Map Text BinaryInfo)
+    decodeBinaries deps =
+      pure . Map.singleton "skelly" $
+        BinaryInfo
+          { sharedInfo =
+              SharedInfo
+                { sourceDirs = []
+                , dependencies = deps
+                }
+          , mainFile = "src/Main.hs"
+          }
 
 {----- Getters -----}
 
@@ -123,8 +194,14 @@ packageVersion = getParsedField $ \ParsedPackageConfig{_packageVersion = x} -> x
 packageToolchainGHC :: PackageConfig -> VersionRange
 packageToolchainGHC = getParsedField $ \ParsedPackageConfig{_packageToolchainGHC = x} -> x
 
-packageDependencies :: PackageConfig -> Map Text VersionRange
+packageDependencies :: PackageConfig -> DependencyMap
 packageDependencies = getParsedField $ \ParsedPackageConfig{_packageDependencies = x} -> x
+
+packageLibraries :: PackageConfig -> Map Text LibraryInfo
+packageLibraries = getParsedField $ \ParsedPackageConfig{_packageLibraries = x} -> x
+
+packageBinaries :: PackageConfig -> Map Text BinaryInfo
+packageBinaries = getParsedField $ \ParsedPackageConfig{_packageBinaries = x} -> x
 
 {----- Updaters -----}
 
