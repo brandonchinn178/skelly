@@ -60,6 +60,10 @@ class HsPackage(NamedTuple):
             f"version: {version}",
         ]
 
+        # extra files
+        # TODO: get this dynamically
+        lines += [f"extra-source-files: src/Skelly/Core/Utils/TOML_encode.py"]
+
         # library
         modules = self.get_modules()
         lib_deps = [
