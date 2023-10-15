@@ -7,6 +7,7 @@ module Skelly.Core.Logging (
   initService,
 
   -- * Methods
+  logAt,
   logDebug,
   logInfo,
   logWarn,
@@ -45,6 +46,9 @@ displayLevel = \case
   LevelInfo -> "INFO"
   LevelWarn -> "WARN"
   LevelError -> "ERROR"
+
+logAt :: Service -> LogLevel -> Text -> IO ()
+logAt = doLog
 
 logDebug :: Service -> Text -> IO ()
 logDebug service = doLog service LevelDebug

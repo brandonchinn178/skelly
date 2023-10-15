@@ -52,9 +52,9 @@ parseOptions =
 main :: IO ()
 main = do
   Options{..} <- parseOptions
-  let service =
-        CLI.initService
-          CLI.Options
-            { logLevel = if cliVerbose then LevelDebug else LevelInfo
-            }
+  service <-
+    CLI.initService
+      CLI.Options
+        { logLevel = if cliVerbose then LevelDebug else LevelInfo
+        }
   executeCommand service cliCommand

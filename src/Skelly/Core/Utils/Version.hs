@@ -2,18 +2,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Skelly.Core.Utils.Version (
+  -- * Version
   Version,
+  makeVersion,
   parseVersion,
+  renderVersion,
+
+  -- * VersionRange
   VersionRange (..),
   VersionOp (..),
   parseVersionRange,
   renderVersionRange,
+
+  -- * Range resolution
+  inRange,
+  chooseBestVersion,
 ) where
 
+import Data.List qualified as List
 import Data.Maybe (listToMaybe, mapMaybe)
+import Data.Ord (Down (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Version (Version)
+import Data.Version (Version, makeVersion)
 import Data.Version qualified as Version
 import Text.ParserCombinators.ReadP (ReadP, readP_to_S, (+++))
 import Text.ParserCombinators.ReadP qualified as ReadP
@@ -27,6 +38,9 @@ runReadP m = listToMaybe . mapMaybe getFullMatch . readP_to_S m . Text.unpack
 
 parseVersion :: Text -> Maybe Version
 parseVersion = runReadP Version.parseVersion
+
+renderVersion :: Version -> Text
+renderVersion = Text.pack . Version.showVersion
 
 data VersionRange
   = AnyVersion
@@ -86,4 +100,29 @@ renderVersionRange = \case
       VERSION_GT -> "> "
       VERSION_GTE -> ">= "
       VERSION_PVP_MAJOR -> "^"
-    renderVersion = Text.pack . Version.showVersion
+
+inRange :: VersionRange -> Version -> Bool
+inRange = \case
+  AnyVersion -> const True
+  VersionWithOp VERSION_LT v -> (< v)
+  VersionWithOp VERSION_LTE v -> (<= v)
+  VersionWithOp VERSION_EQ v -> (== v)
+  VersionWithOp VERSION_GT v -> (> v)
+  VersionWithOp VERSION_GTE v -> (>= v)
+  VersionWithOp VERSION_PVP_MAJOR v -> matchesPVP v
+  VersionRangeAnd l r -> inRange l .&&. inRange r
+  VersionRangeOr l r -> inRange l .||. inRange r
+  where
+    (.&&.) = liftA2 (&&)
+    (.||.) = liftA2 (||)
+
+    matchesPVP v =
+      let (x, y) = toPVP v
+       in (>= v) .&&. (< makeVersion [x, y + 1])
+    toPVP v =
+      case take 2 (Version.versionBranch v) <> repeat 0 of
+        x : y : _ -> (x, y)
+        l -> error $ "list was unexpectedly not infinite: " ++ show l
+
+chooseBestVersion :: VersionRange -> [Version] -> Maybe Version
+chooseBestVersion range = List.find (inRange range) . List.sortOn Down

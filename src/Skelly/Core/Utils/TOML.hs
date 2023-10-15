@@ -53,6 +53,7 @@ import Data.Text.Lazy qualified as TextL
 import Data.Time (timeZoneOffsetString)
 import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
+import Skelly.Core.Paths (skellyCacheDir)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
@@ -60,11 +61,9 @@ import System.Process (readProcessWithExitCode)
 import TOML qualified
 import TOML.Decode qualified as TOML
 import UnliftIO.Directory (
-  XdgDirectory (..),
   createDirectoryIfMissing,
   doesDirectoryExist,
   findExecutable,
-  getXdgDirectory,
  )
 
 -- | TODO: Implement our own type instead of reusing `toml-reader`, so
@@ -110,7 +109,7 @@ data DocumentUpdate = SetKey [Text] TOML.Value
 -- TODO: Implement natively in Haskell
 encode :: Document -> Text
 encode Document{..} = unsafePerformIO $ do
-  cacheDir <- getXdgDirectory XdgCache "skelly/encode"
+  let cacheDir = skellyCacheDir </> "toml-encode-python"
   createDirectoryIfMissing True cacheDir
 
   let venvDir = cacheDir </> "venv"

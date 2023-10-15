@@ -12,9 +12,9 @@ import Skelly.CLI.Command
 import Skelly.CLI.Service qualified as CLI
 import Skelly.Core.Config (PackageConfig)
 import Skelly.Core.Config qualified as Config
-import Skelly.Core.Hackage qualified as Hackage
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Utils.Version (
   Version,
   VersionOp (..),
@@ -53,12 +53,14 @@ commandAdd =
 execute :: CLI.Service -> Options -> IO ()
 execute CLI.Service{..} = run service
   where
+    -- TODO: allow user to configure the index provider + hackage opts
+    packageIndexService = PackageIndex.initServiceHackage hackageService PackageIndex.defaultHackageOptions
     service =
       Service
         { loggingService
         , loadConfig = Config.loadConfig loggingService
         , saveConfig = Config.saveConfig
-        , getLatestVersion = Hackage.getLatestVersion
+        , getLatestVersion = PackageIndex.getLatestVersion packageIndexService
         }
 
 {----- Execution -----}
