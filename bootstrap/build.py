@@ -19,19 +19,27 @@ SRC_DIR = TOP / "src"
 
 def main():
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    if not (BUILD_DIR / "src").exists():
+        (BUILD_DIR / "src").symlink_to(TOP / "src")
+
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
     hs_project = HsProject.parse(TOP / "hsproject.toml")
     hs_project.write_cabal(BUILD_DIR / "skelly.cabal")
 
-    def run(*args, **kwargs):
-        return subprocess.run(args, check=True, cwd=BUILD_DIR, **kwargs)
-
     ghc_version = hs_project.find_appropriate_ghc_version()
-    run("cabal", "configure", "-w", f"ghc-{ghc_version}")
-    run("cabal", "build")
-    skelly_bin = run("cabal", "exec", "which", "skelly", capture_output=True).stdout.decode().strip()
-    run("ln", "-sf", skelly_bin, DIST_DIR / "skelly")
+    subprocess.run(
+        [
+            "cabal",
+            "install",
+            "-w", f"ghc-{ghc_version}",
+            "--overwrite-policy=always",
+            "--install-method=symlink",
+            f"--installdir={DIST_DIR}",
+        ],
+        cwd=BUILD_DIR,
+        check=True,
+    )
 
 class HsProject(NamedTuple):
     config: dict[str, Any]
@@ -43,12 +51,6 @@ class HsProject(NamedTuple):
         return cls(config=config)
 
     def write_cabal(self, file: Path) -> None:
-        path_to_top = "/".join(
-            ".."
-            for parent in file.relative_to(TOP).parents
-            if parent.name != ""
-        )
-
         # header + metadata
         name = self.config["package"]["name"]
         version = self.config["package"]["version"]
@@ -68,7 +70,7 @@ class HsProject(NamedTuple):
             f"library",
             f"  default-language: Haskell2010",
             f"  default-extensions: ImportQualifiedPost",
-            f"  hs-source-dirs: {path_to_top}/src",
+            f"  hs-source-dirs: src",
             f"  exposed-modules:",
           *(f"    {s}" for s in modules),
             f"  build-depends:",
@@ -80,7 +82,7 @@ class HsProject(NamedTuple):
             f"executable {name}",
             f"  default-language: Haskell2010",
             f"  default-extensions: ImportQualifiedPost",
-            f"  main-is: {path_to_top}/src/Main.hs",
+            f"  main-is: src/Main.hs",
             f"  build-depends:",
             f"    {name},",
           *(f"    {dep}," for dep in lib_deps),
