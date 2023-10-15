@@ -1,6 +1,7 @@
 module Skelly.CLI.CommandAdd (commandAdd) where
 
 import Skelly.CLI.Command
+import Skelly.CLI.Service qualified as CLI
 
 commandAdd :: Command
 commandAdd =
@@ -8,8 +9,8 @@ commandAdd =
     { cmdName = "add"
     , cmdDesc = "Add a dependency to hsproject.toml"
     , cmdParse = pure ()
-    , cmdRun = run
+    , cmdExec = execute
     }
 
-run :: () -> SharedOptions -> IO ()
-run () _ = putStrLn "TODO: add"
+execute :: CLI.Service -> () -> IO ()
+execute _ () = putStrLn "TODO: add"

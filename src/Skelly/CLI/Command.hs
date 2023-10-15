@@ -3,7 +3,6 @@
 
 module Skelly.CLI.Command (
   Command (..),
-  SharedOptions (..),
 
   -- * ParsedCommand
   ParsedCommand,
@@ -12,7 +11,7 @@ module Skelly.CLI.Command (
 ) where
 
 import Options.Applicative qualified as Opt
-import Skelly.Core.Logging (LogLevel)
+import Skelly.CLI.Service qualified as CLI
 
 data Command =
   forall opts.
@@ -20,17 +19,13 @@ data Command =
   { cmdName :: String
   , cmdDesc :: String
   , cmdParse :: Opt.Parser opts
-  , cmdRun :: opts -> SharedOptions -> IO ()
+  , cmdExec :: CLI.Service -> opts -> IO ()
   }
 
-data SharedOptions = SharedOptions
-  { logLevel :: LogLevel
-  }
-
-newtype ParsedCommand = ParsedCommand (SharedOptions -> IO ())
+newtype ParsedCommand = ParsedCommand (CLI.Service -> IO ())
 
 fromCommand :: Command -> Opt.Parser ParsedCommand
-fromCommand Command{..} = ParsedCommand . cmdRun <$> cmdParse
+fromCommand Command{..} = ParsedCommand . flip cmdExec <$> cmdParse
 
-executeCommand :: ParsedCommand -> SharedOptions -> IO ()
-executeCommand (ParsedCommand f) = f
+executeCommand :: CLI.Service -> ParsedCommand -> IO ()
+executeCommand service (ParsedCommand f) = f service

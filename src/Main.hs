@@ -7,6 +7,7 @@ import Skelly.CLI.CommandBuild
 import Skelly.CLI.CommandClean
 import Skelly.CLI.CommandRun
 import Skelly.CLI.CommandTest
+import Skelly.CLI.Service qualified as CLI
 import Skelly.Core.Logging (LogLevel (..))
 
 data Options = Options
@@ -51,7 +52,9 @@ parseOptions =
 main :: IO ()
 main = do
   Options{..} <- parseOptions
-  executeCommand cliCommand $
-    SharedOptions
-      { logLevel = if cliVerbose then LevelDebug else LevelInfo
-      }
+  let service =
+        CLI.initService
+          CLI.Options
+            { logLevel = if cliVerbose then LevelDebug else LevelInfo
+            }
+  executeCommand service cliCommand

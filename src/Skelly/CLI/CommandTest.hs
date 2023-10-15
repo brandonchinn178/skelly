@@ -1,6 +1,7 @@
 module Skelly.CLI.CommandTest (commandTest) where
 
 import Skelly.CLI.Command
+import Skelly.CLI.Service qualified as CLI
 
 commandTest :: Command
 commandTest =
@@ -8,8 +9,8 @@ commandTest =
     { cmdName = "test"
     , cmdDesc = "Run tests"
     , cmdParse = pure ()
-    , cmdRun = run
+    , cmdExec = execute
     }
 
-run :: () -> SharedOptions -> IO ()
-run () _ = putStrLn "TODO: test"
+execute :: CLI.Service -> () -> IO ()
+execute _ () = putStrLn "TODO: test"

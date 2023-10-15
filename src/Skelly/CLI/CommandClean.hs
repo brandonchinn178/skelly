@@ -1,6 +1,7 @@
 module Skelly.CLI.CommandClean (commandClean) where
 
 import Skelly.CLI.Command
+import Skelly.CLI.Service qualified as CLI
 
 commandClean :: Command
 commandClean =
@@ -8,8 +9,8 @@ commandClean =
     { cmdName = "clean"
     , cmdDesc = "Clean all build artifacts"
     , cmdParse = pure ()
-    , cmdRun = run
+    , cmdExec = execute
     }
 
-run :: () -> SharedOptions -> IO ()
-run () _ = putStrLn "TODO: clean"
+execute :: CLI.Service -> () -> IO ()
+execute _ () = putStrLn "TODO: clean"

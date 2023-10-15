@@ -4,6 +4,7 @@ module Skelly.CLI.CommandBuild (commandBuild) where
 
 import Data.Text (Text)
 import Skelly.CLI.Command
+import Skelly.CLI.Service qualified as CLI
 
 commandBuild :: Command
 commandBuild =
@@ -13,12 +14,12 @@ commandBuild =
     , cmdParse =
         BuildOptions
           <$> pure [] -- TODO
-    , cmdRun = run
+    , cmdExec = execute
     }
 
 data BuildOptions = BuildOptions
   { buildTargets :: [Text]
   }
 
-run :: BuildOptions -> SharedOptions -> IO ()
-run BuildOptions{..} _ = putStrLn $ "TODO: build: " ++ show buildTargets
+execute :: CLI.Service -> BuildOptions -> IO ()
+execute _ BuildOptions{..} = putStrLn $ "TODO: build: " ++ show buildTargets

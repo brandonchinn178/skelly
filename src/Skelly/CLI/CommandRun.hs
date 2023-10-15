@@ -1,6 +1,7 @@
 module Skelly.CLI.CommandRun (commandRun) where
 
 import Skelly.CLI.Command
+import Skelly.CLI.Service qualified as CLI
 
 commandRun :: Command
 commandRun =
@@ -8,8 +9,8 @@ commandRun =
     { cmdName = "run"
     , cmdDesc = "Run an executable"
     , cmdParse = pure ()
-    , cmdRun = run
+    , cmdExec = execute
     }
 
-run :: () -> SharedOptions -> IO ()
-run () _ = putStrLn "TODO: run"
+execute :: CLI.Service -> () -> IO ()
+execute _ () = putStrLn "TODO: run"
