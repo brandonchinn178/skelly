@@ -71,6 +71,7 @@ class HsProject(NamedTuple):
             f"  default-language: Haskell2010",
             f"  default-extensions: ImportQualifiedPost",
             f"  hs-source-dirs: src",
+            f"  ghc-options: -Wall -Werror",  # TODO: add this dynamically
             f"  exposed-modules:",
           *(f"    {s}" for s in modules),
             f"  build-depends:",
@@ -83,6 +84,7 @@ class HsProject(NamedTuple):
             f"  default-language: Haskell2010",
             f"  default-extensions: ImportQualifiedPost",
             f"  main-is: src/Main.hs",
+            f"  ghc-options: -Wall -Werror",  # TODO: add this dynamically
             f"  build-depends:",
             f"    {name},",
           *(f"    {dep}," for dep in lib_deps),

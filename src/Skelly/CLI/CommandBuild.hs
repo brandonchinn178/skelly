@@ -3,7 +3,6 @@
 module Skelly.CLI.CommandBuild (commandBuild) where
 
 import Data.Text (Text)
-import Options.Applicative
 import Skelly.CLI.Command
 
 commandBuild :: Command
@@ -22,4 +21,4 @@ data BuildOptions = BuildOptions
   }
 
 run :: BuildOptions -> SharedOptions -> IO ()
-run _ _ = putStrLn "TODO: build"
+run BuildOptions{..} _ = putStrLn $ "TODO: build: " ++ show buildTargets
