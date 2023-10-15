@@ -14,12 +14,17 @@ module Skelly.Core.Config (
 
   -- * Methods
   loadConfig,
+  loadConfig',
+  saveConfig,
   addDependency,
 ) where
 
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text)
+import Data.Text qualified as Text
+import Skelly.Core.Error (SkellyError (..))
+import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.Utils.TOML qualified as TOML
 import Skelly.Core.Utils.Version (
   Version,
@@ -28,14 +33,17 @@ import Skelly.Core.Utils.Version (
   parseVersionRange,
   renderVersionRange,
  )
-import UnliftIO.Exception (fromEither, fromEitherM)
+import System.FilePath (takeDirectory, (</>))
+import UnliftIO.Directory (doesFileExist, getCurrentDirectory)
+import UnliftIO.Exception (fromEither, fromEitherM, throwIO)
 
 -- | The `hspackage.toml` file.
---
--- Invariant: parsedConfig and rawConfig are in sync.
 data PackageConfig = PackageConfig
-  { parsedConfig :: ParsedPackageConfig
+  { configPath :: FilePath
+  , parsedConfig :: ParsedPackageConfig
+  -- ^ Invariant: In sync with rawConfig
   , rawConfig :: TOML.Document
+  -- ^ Invariant: In sync with parsedConfig
   }
 
 data ParsedPackageConfig = ParsedPackageConfig
@@ -45,9 +53,28 @@ data ParsedPackageConfig = ParsedPackageConfig
   , _packageDependencies :: Map Text VersionRange
   }
 
-loadConfig :: FilePath -> IO PackageConfig
-loadConfig fp = do
-  rawConfig <- fromEitherM $ TOML.decodeFile fp
+loadConfig :: Logging.Service -> IO PackageConfig
+loadConfig loggingService = do
+  paths <- getConfigPaths <$> getCurrentDirectory
+  go paths >>= maybe (throwIO $ NoPackageConfig paths) pure
+  where
+    getConfigPaths dir =
+      let parent = takeDirectory dir
+          parents = if parent == dir then [] else getConfigPaths parent
+       in (dir </> "hspackage.toml") : parents
+
+    go = \case
+      [] -> pure Nothing
+      fp : fps ->
+        doesFileExist fp >>= \case
+          True -> do
+            Logging.logDebug loggingService $ "Found hspackage.toml at: " <> Text.pack fp
+            Just <$> loadConfig' fp
+          False -> go fps
+
+loadConfig' :: FilePath -> IO PackageConfig
+loadConfig' configPath = do
+  rawConfig <- fromEitherM $ TOML.decodeFile configPath
   parsedConfig <- fromEither $ TOML.parseWith decodeParsedConfig rawConfig
   pure PackageConfig{..}
 
@@ -101,16 +128,19 @@ packageDependencies = getParsedField $ \ParsedPackageConfig{_packageDependencies
 
 {----- Updaters -----}
 
+saveConfig :: PackageConfig -> IO ()
+saveConfig PackageConfig{..} = TOML.encodeFile configPath rawConfig
+
 addDependency :: Text -> VersionRange -> PackageConfig -> PackageConfig
-addDependency dep versionRange PackageConfig{..} =
-  PackageConfig
+addDependency dep versionRange config@PackageConfig{..} =
+  config
     { parsedConfig =
         parsedConfig
           { _packageDependencies = Map.insert dep versionRange _packageDependencies
           }
     , rawConfig =
         TOML.setKey
-          ["dependencies", dep]
+          ["skelly", "dependencies", dep]
           (TOML.String $ renderVersionRange versionRange)
           rawConfig
     }
