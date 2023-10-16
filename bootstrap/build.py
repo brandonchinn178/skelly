@@ -24,10 +24,10 @@ def main():
 
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
-    hs_project = HsProject.parse(TOP / "hsproject.toml")
-    hs_project.write_cabal(BUILD_DIR / "skelly.cabal")
+    hs_package = HsPackage.parse(TOP / "hspackage.toml")
+    hs_package.write_cabal(BUILD_DIR / "skelly.cabal")
 
-    ghc_version = hs_project.find_appropriate_ghc_version()
+    ghc_version = hs_package.find_appropriate_ghc_version()
     subprocess.run(
         [
             "cabal",
@@ -41,11 +41,11 @@ def main():
         check=True,
     )
 
-class HsProject(NamedTuple):
+class HsPackage(NamedTuple):
     config: dict[str, Any]
 
     @classmethod
-    def parse(cls, file: Path) -> HsProject:
+    def parse(cls, file: Path) -> HsPackage:
         with file.open("rb") as f:
             config = tomllib.load(f)
         return cls(config=config)

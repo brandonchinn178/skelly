@@ -52,11 +52,11 @@ V1:
 V2:
 * `skelly bench`
 * User-defined scripts
-* `.skelly/config.toml`
+* `hsproject.toml` (scripts, skelly config, etc.)
 * C libraries
 * CPP support
 * Flags + other conditional stuff
-* Share hsproject config (e.g. in a monorepo)
+* Share hspackage config (e.g. in a monorepo)
 
 Long shot:
 * New package repository
