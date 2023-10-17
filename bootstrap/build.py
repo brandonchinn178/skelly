@@ -52,8 +52,8 @@ class HsPackage(NamedTuple):
 
     def write_cabal(self, file: Path) -> None:
         # header + metadata
-        name = self.config["package"]["name"]
-        version = self.config["package"]["version"]
+        name = self.config["skelly"]["package"]["name"]
+        version = self.config["skelly"]["package"]["version"]
         lines = [
             f"cabal-version: 2.4",
             f"name: {name}",
@@ -64,7 +64,7 @@ class HsPackage(NamedTuple):
         modules = self.get_modules()
         lib_deps = [
             f"{name} {version_range}"
-            for name, version_range in self.config["dependencies"].items()
+            for name, version_range in self.config["skelly"]["dependencies"].items()
         ]
         lines += [
             f"library",
@@ -94,7 +94,7 @@ class HsPackage(NamedTuple):
 
     def is_allowed_ghc_version(self, version: str) -> bool:
         version_info = tuple(int(x) for x in version.split("."))
-        # TODO: parse bounds from self.config["toolchain"]["ghc"]
+        # TODO: parse bounds from self.config["skelly"]["toolchain"]["ghc"]
         return version_info >= (9, 6) and version_info < (9, 8)
 
     def find_appropriate_ghc_version(self) -> str:

@@ -48,28 +48,28 @@ Skelly, by default, expects packages to be laid out in the following manner:
 `hspackage.toml` is the configuration for the package.
 
 ```toml
-[package]
+[skelly.package]
 name = "my-package"
 version = "0.0.0"
 
-# Unnamed [[lib]] section has same name as package
-[[lib]]
-[lib.dependencies]
+# Unnamed [[skelly.lib]] section has same name as package
+[[skelly.lib]]
+[skelly.lib.dependencies]
 bar = "*"
 
-[[lib]]
+[[skelly.lib]]
 name = "another-lib"
-[lib.dependencies]
+[skelly.lib.dependencies]
 bar = "*"
 
-# Unnamed [[bin]] section has same name as package
-[[bin]]
-[bin.dependencies]
+# Unnamed [[skelly.bin]] section has same name as package
+[[skelly.bin]]
+[skelly.bin.dependencies]
 baz = "*"
 
-[[bin]]
+[[skelly.bin]]
 name = "my-exe"
-[bin.dependencies]
+[skelly.bin.dependencies]
 baz = "*"
 ```
 
@@ -77,15 +77,17 @@ baz = "*"
 
 ```toml
 # Register custom scripts to run with 'skelly my-script'.
-[scripts]
+[skelly.scripts]
 my-script = "..."
 
 # Extra dependencies to install for development,
 # categorized however makes sense for you
-[[dev-dependencies.group.lint]]
+[[skelly.dev-dependencies.group.lint]]
 hlint = "*"
 stan = "*"
 ```
+
+All of the sections in `hspackage.toml` and `hsproject.toml` are prefixed with `skelly` so that other tools can be configured from these files as well.
 
 ## Tests
 
