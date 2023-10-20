@@ -108,7 +108,7 @@ data IndexPtrs = IndexPtrs
 instance Serialise IndexPtrs where
   encode IndexPtrs{..} =
     mconcat
-      [ Serialise.encodeListLen 3
+      [ Serialise.encodeListLen 4
       , Serialise.encodeWord 0
       , Serialise.encode $ Hackage.directoryEntryBlockNo nextEntry
       , Serialise.encode $ (fmap . fmap) Hackage.directoryEntryBlockNo packagePtrs
@@ -118,7 +118,7 @@ instance Serialise IndexPtrs where
     len <- Serialise.decodeListLen
     tag <- Serialise.decodeWord
     case (len, tag) of
-      (3, 0) -> do
+      (4, 0) -> do
         nextEntry <- Serialise.decode
         packagePtrs <- Serialise.decode
         preferredVersionsPtrs <- Serialise.decode
