@@ -5,7 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Skelly.Core.Config (
+module Skelly.Core.PackageConfig (
   PackageConfig,
   packageName,
   packageVersion,
@@ -13,9 +13,9 @@ module Skelly.Core.Config (
   packageDependencies,
 
   -- * Methods
-  loadConfig,
-  loadConfig',
-  saveConfig,
+  loadPackageConfig,
+  loadPackageConfig',
+  savePackageConfig,
   addDependency,
 ) where
 
@@ -53,8 +53,8 @@ data ParsedPackageConfig = ParsedPackageConfig
   , _packageDependencies :: Map Text VersionRange
   }
 
-loadConfig :: Logging.Service -> IO PackageConfig
-loadConfig loggingService = do
+loadPackageConfig :: Logging.Service -> IO PackageConfig
+loadPackageConfig loggingService = do
   paths <- getConfigPaths <$> getCurrentDirectory
   go paths >>= maybe (throwIO $ NoPackageConfig paths) pure
   where
@@ -69,11 +69,11 @@ loadConfig loggingService = do
         doesFileExist fp >>= \case
           True -> do
             Logging.logDebug loggingService $ "Found hspackage.toml at: " <> Text.pack fp
-            Just <$> loadConfig' fp
+            Just <$> loadPackageConfig' fp
           False -> go fps
 
-loadConfig' :: FilePath -> IO PackageConfig
-loadConfig' configPath = do
+loadPackageConfig' :: FilePath -> IO PackageConfig
+loadPackageConfig' configPath = do
   rawConfig <- fromEitherM $ TOML.decodeFile configPath
   parsedConfig <- fromEither $ TOML.parseWith decodeParsedConfig rawConfig
   pure PackageConfig{..}
@@ -128,8 +128,8 @@ packageDependencies = getParsedField $ \ParsedPackageConfig{_packageDependencies
 
 {----- Updaters -----}
 
-saveConfig :: PackageConfig -> IO ()
-saveConfig PackageConfig{..} = TOML.encodeFile configPath rawConfig
+savePackageConfig :: PackageConfig -> IO ()
+savePackageConfig PackageConfig{..} = TOML.encodeFile configPath rawConfig
 
 addDependency :: Text -> VersionRange -> PackageConfig -> PackageConfig
 addDependency dep versionRange config@PackageConfig{..} =

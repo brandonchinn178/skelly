@@ -10,10 +10,10 @@ import Data.Text qualified as Text
 import Options.Applicative
 import Skelly.CLI.Command
 import Skelly.CLI.Service qualified as CLI
-import Skelly.Core.Config (PackageConfig)
-import Skelly.Core.Config qualified as Config
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.PackageConfig (PackageConfig)
+import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Utils.Version (
   Version,
@@ -58,8 +58,8 @@ execute CLI.Service{..} = run service
     service =
       Service
         { loggingService
-        , loadConfig = Config.loadConfig loggingService
-        , saveConfig = Config.saveConfig
+        , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
+        , savePackageConfig = PackageConfig.savePackageConfig
         , getLatestVersion = PackageIndex.getLatestVersion packageIndexService
         }
 
@@ -67,8 +67,8 @@ execute CLI.Service{..} = run service
 
 data Service = Service
   { loggingService :: Logging.Service
-  , loadConfig :: IO PackageConfig
-  , saveConfig :: PackageConfig -> IO ()
+  , loadPackageConfig :: IO PackageConfig
+  , savePackageConfig :: PackageConfig -> IO ()
   , getLatestVersion :: Text -> IO Version
   }
 
@@ -80,14 +80,14 @@ data Options = Options
 
 run :: Service -> Options -> IO ()
 run Service{..} Options{..} = do
-  cfg <- loadConfig
-  foldlM go cfg dependencies >>= saveConfig
+  cfg <- loadPackageConfig
+  foldlM go cfg dependencies >>= savePackageConfig
   where
     go cfg (dep, mRange) = do
       range <- resolveRange dep mRange
       logDebug loggingService $
         "Adding dependency: " <> dep <> " => " <> renderVersionRange range
-      pure $ Config.addDependency dep range cfg
+      pure $ PackageConfig.addDependency dep range cfg
 
     -- If a range isn't specified, default to "^X.Y.Z", where "X.Y.Z" is the
     -- most recent version on Hackage currently.
