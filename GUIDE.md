@@ -30,9 +30,9 @@ Skelly, by default, expects packages to be laid out in the following manner:
 ├── hspackage.toml
 ├── src/
 │   ├── Main.hs
-│   ├── MyLibrary.hs
-│   ├── MyLibrary.spec.hs
 │   └── MyLibrary/
+│       ├── _.hs
+│       ├── _.spec.hs
 │       ├── Cache.hs
 │       └── Cache.spec.hs
 └── tests/
@@ -42,6 +42,8 @@ Skelly, by default, expects packages to be laid out in the following manner:
         ├── Tests1.hs
         └── Tests2.hs
 ```
+
+The `_.hs` files make it easy to keep relevant modules together. Specifically, `Foo/Bar/_.hs` will be imported with `import Foo.Bar`. It is an error for both `Foo/Bar.hs` and `Foo/Bar/_.hs` to exist.
 
 ## Package configuration
 
