@@ -58,16 +58,18 @@ data ParsedPackageConfig = ParsedPackageConfig
   { _packageName :: Text
   , _packageVersion :: Version
   , _packageToolchainGHC :: VersionRange
-  , _packageDependencies :: Map Text VersionRange
+  , _packageDependencies :: DependencyMap
   , _packageLibraries :: Map Text LibraryInfo
   , _packageBinaries :: Map Text BinaryInfo
   }
 
+type DependencyMap = Map Text VersionRange
+
 -- TODO: add ghc options
--- TODO: add dependencies
 -- TODO: add default extensions
 data SharedInfo = SharedInfo
   { sourceDirs :: [FilePath]
+  , dependencies :: DependencyMap
   }
   deriving (Show)
 
@@ -108,14 +110,15 @@ loadPackageConfig' configPath = do
   pure PackageConfig{..}
 
 decodeParsedConfig :: TOML.Decoder ParsedPackageConfig
-decodeParsedConfig =
+decodeParsedConfig = do
+  packageDeps <- TOML.getFieldsWith decodeDependencies ["skelly", "dependencies"]
   pure ParsedPackageConfig
     <*> TOML.getFields ["skelly", "package", "name"]
     <*> TOML.getFieldsWith decodeVersion ["skelly", "package", "version"]
     <*> TOML.getFieldsWith decodeVersionRange ["skelly", "toolchain", "ghc"]
-    <*> TOML.getFieldsWith decodeDependencies ["skelly", "dependencies"]
-    <*> decodeLibraries -- TODO: decode from config file
-    <*> decodeBinaries -- TODO: decode from config file
+    <*> pure packageDeps
+    <*> decodeLibraries packageDeps
+    <*> decodeBinaries packageDeps
   where
     decodeVersion :: TOML.Decoder Version
     decodeVersion = TOML.makeDecoder $ \v ->
@@ -135,23 +138,27 @@ decodeParsedConfig =
             Nothing -> TOML.invalidValue "Invalid version range" v
         _ -> TOML.typeMismatch v
 
-    decodeDependencies :: TOML.Decoder (Map Text VersionRange)
+    decodeDependencies :: TOML.Decoder DependencyMap
     decodeDependencies = TOML.makeDecoder $ \case
       TOML.Table table -> traverse (TOML.runDecoder decodeVersionRange) table
       v -> TOML.typeMismatch v
 
-    -- TODO: defualt name: same name as package
+    -- TODO: parse from [[skelly.lib]]
+    -- TODO: get deps in [skelly.lib.dependencies] if present
+    -- TODO: default name: same name as package
     -- TODO: error if duplicate names
-    decodeLibraries :: TOML.Decoder (Map Text LibraryInfo)
-    decodeLibraries =
+    decodeLibraries :: DependencyMap -> TOML.Decoder (Map Text LibraryInfo)
+    decodeLibraries deps =
       pure . Map.singleton "skelly" $
         LibraryInfo
           { sharedInfo =
               SharedInfo
                 { sourceDirs = ["src"]
+                , dependencies = deps
                 }
           }
 
+    -- TODO: parse from [[skelly.bin]]
     -- TODO: default name: same name as package
     -- TODO: default mainFile:
     --         if one bin => src/Main.hs
@@ -161,13 +168,14 @@ decodeParsedConfig =
     --         if directory exists => [src/bin/<name>/]
     --         otherwise => []
     -- TODO: error if duplicate names
-    decodeBinaries :: TOML.Decoder (Map Text BinaryInfo)
-    decodeBinaries =
+    decodeBinaries :: DependencyMap -> TOML.Decoder (Map Text BinaryInfo)
+    decodeBinaries deps =
       pure . Map.singleton "skelly" $
         BinaryInfo
           { sharedInfo =
               SharedInfo
                 { sourceDirs = []
+                , dependencies = deps
                 }
           , mainFile = "src/Main.hs"
           }
@@ -186,7 +194,7 @@ packageVersion = getParsedField $ \ParsedPackageConfig{_packageVersion = x} -> x
 packageToolchainGHC :: PackageConfig -> VersionRange
 packageToolchainGHC = getParsedField $ \ParsedPackageConfig{_packageToolchainGHC = x} -> x
 
-packageDependencies :: PackageConfig -> Map Text VersionRange
+packageDependencies :: PackageConfig -> DependencyMap
 packageDependencies = getParsedField $ \ParsedPackageConfig{_packageDependencies = x} -> x
 
 packageLibraries :: PackageConfig -> Map Text LibraryInfo

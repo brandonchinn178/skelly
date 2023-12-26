@@ -32,6 +32,7 @@ import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.Parse (parseImports)
+import Skelly.Core.Paths (packageDistDir)
 import Skelly.Core.Utils.Default (defaultOpts)
 import Skelly.Core.Utils.Modules (
   ModuleName,
@@ -40,7 +41,9 @@ import Skelly.Core.Utils.Modules (
   renderModuleName,
  )
 import Skelly.Core.Utils.Path (listFiles)
+import System.Directory (getHomeDirectory)
 import System.FilePath ((</>))
+import System.Process (callProcess)
 import UnliftIO.Async (pooledForConcurrently)
 
 data Service = Service
@@ -92,7 +95,7 @@ run service@Service{..} Options{..} = do
 
   -- TODO: build dependencies
   -- for now, assume dependencies are registered here
-  let packageDb = "~/.cabal/store/ghc-9.6.2/package.db"
+  packageDb <- (</> ".cabal/store/ghc-9.6.2/package.db") <$> getHomeDirectory
 
   -- build libraries
   forM_ (Map.toList libs) $ \(name, libInfo) ->
@@ -115,15 +118,24 @@ buildLibrary Service{..} packageDb libName PackageConfig.LibraryInfo{..} = do
 
   modulesSorted <- sortModules loggingService modules
 
-  error . unlines $
-    [ "FIXME: ghc -c <modules in order> -package-db $packageDb -package $deps -odir <odir> -hidir <hidir>"
-    , show packageDb
-    , show (map renderModuleName modulesSorted)
+  -- TODO: put outDir in same directory as hspackage.toml
+  let outDir = packageDistDir
+  -- TODO: find specific GHC, log path to GHC
+  -- FIXME: add all transitive deps
+  -- FIXME: log command that's running
+  -- FIXME: capture logs + stream to file + stream to stdout with DEBUG
+  callProcess "ghc" . concat $
+    [ ["-c"] <> map snd modulesSorted
+    , ["-odir", outDir]
+    , ["-hidir", outDir]
+    , ["-package-db", packageDb]
+    , ["-hide-all-packages"]
+    , concatMap (\p -> ["-package", Text.unpack p]) . Map.keys $ dependencies
     ]
-    :: IO ()
+
   error "FIXME: build .a package file manually" :: IO ()
   where
-    PackageConfig.SharedInfo{sourceDirs} = sharedInfo
+    PackageConfig.SharedInfo{sourceDirs, dependencies} = sharedInfo
 
     showModulesAndPaths =
       let showModuleAndPath (name, path) = renderModuleName name <> " (" <> Text.pack path <> ")"
@@ -135,7 +147,7 @@ findModulesUnder dir = mapMaybe parseModulePath' <$> listFiles defaultOpts dir
     parseModulePath' file = (,dir </> file) <$> parseModulePath file
 
 -- | Sort modules, where latter modules may import earlier modules.
-sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [ModuleName]
+sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, FilePath)]
 sortModules loggingService modulesWithPath = do
   moduleToImports <-
     pooledForConcurrently modulesWithPath $ \(moduleName, path) -> do
@@ -148,15 +160,15 @@ sortModules loggingService modulesWithPath = do
       logProgress "Running..."
       imports <- parseImports path <$> Text.readFile path
       logProgress "Finished"
-      pure (moduleName, imports)
+      pure ((moduleName, path), imports)
 
   let (modulesGraph, fromVertex, _) =
         Graph.graphFromEdges
-          [ ((), moduleName, imports)
-          | (moduleName, imports) <- moduleToImports
+          [ (path, moduleName, imports)
+          | ((moduleName, path), imports) <- moduleToImports
           ]
-  let fromVertex' v = let (_, key, _) = fromVertex v in key
-  pure $ map fromVertex' $ Graph.reverseTopSort modulesGraph
+  let getModuleInfo v = let (path, moduleName, _) = fromVertex v in (moduleName, path)
+  pure $ map getModuleInfo $ Graph.reverseTopSort modulesGraph
 
 {----- Targets -----}
 
