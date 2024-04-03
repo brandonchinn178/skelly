@@ -1,28 +1,42 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Skelly.Core.Utils.Cabal (
   parsePreferredVersions,
+
+  -- * Package info
+  PackageInfo (..),
+  parseCabalFile,
 
   -- * Package names
   Cabal.PackageIdentifier (..),
   Cabal.mkPackageName,
   fromPackageName,
   toPackageName,
+  toPackageIdentifier,
 
   -- * Versions
   fromCabalVersion,
+  toCabalVersion,
 ) where
 
+import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as Lazy (ByteString)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (listToMaybe, mapMaybe)
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Version qualified as Version
 import Distribution.Client.IndexUtils qualified as Cabal
-import Distribution.Types.Dependency qualified as Cabal
-import Distribution.Types.PackageId qualified as Cabal
-import Distribution.Types.PackageName qualified as Cabal
+import Distribution.PackageDescription qualified as Cabal
+import Distribution.PackageDescription.Parsec qualified as Cabal
+import Distribution.Parsec.Error qualified as Cabal
 import Distribution.Types.Version qualified as Cabal
 import Distribution.Types.VersionRange qualified as Cabal
+import Skelly.Core.Error (SkellyError (..))
+import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
 import Skelly.Core.Utils.Version (
   Version,
   VersionOp (..),
@@ -41,23 +55,64 @@ parsePreferredVersions package =
     go = \case
       Right (Cabal.Dependency pkg range _)
         | Cabal.unPackageName pkg == Text.unpack package ->
-            Just $ fromRange range
+            Just $ fromCabalVersionRange range
       _ -> Nothing
 
-    fromRange =
-      Cabal.foldVersionRange
-        AnyVersion
-        (VersionWithOp VERSION_EQ . fromCabalVersion)
-        (VersionWithOp VERSION_GT . fromCabalVersion)
-        (VersionWithOp VERSION_LT . fromCabalVersion)
-        VersionRangeOr
-        VersionRangeAnd
+data PackageInfo = PackageInfo
+  { packageDependencies :: Map Text VersionRange
+  }
+
+parseCabalFile :: PackageId -> ByteString -> Either SkellyError PackageInfo
+parseCabalFile packageId input = do
+  -- ignore warnings for now
+  let (_warnings, result) = Cabal.runParseResult $ Cabal.parseGenericPackageDescription input
+
+  pkg <-
+    case result of
+      Right Cabal.GenericPackageDescription{packageDescription = pkg} -> pure pkg
+      Left (_cabalVersion, errors) ->
+        Left . BadCabalFile packageId $
+          Text.unlines . map renderPError . NonEmpty.toList $ errors
+
+  pure
+    PackageInfo
+      { packageDependencies =
+          case Cabal.library pkg of
+            Nothing -> Map.empty
+            Just lib ->
+              Map.fromList
+                [ (fromPackageName name, fromCabalVersionRange range)
+                | Cabal.Dependency name range _ <- (Cabal.targetBuildDepends . Cabal.libBuildInfo) lib
+                ]
+      }
+  where
+    renderPError = Text.pack . Cabal.showPError (Text.unpack $ renderPackageId packageId)
 
 fromCabalVersion :: Cabal.Version -> Version
 fromCabalVersion = makeVersion . Cabal.versionNumbers
+
+toCabalVersion :: Version -> Cabal.Version
+toCabalVersion = Cabal.mkVersion . Version.versionBranch
+
+fromCabalVersionRange :: Cabal.VersionRange -> VersionRange
+fromCabalVersionRange =
+  Cabal.foldVersionRange
+    AnyVersion
+    (VersionWithOp VERSION_EQ . fromCabalVersion)
+    (VersionWithOp VERSION_GT . fromCabalVersion)
+    (VersionWithOp VERSION_LT . fromCabalVersion)
+    VersionRangeOr
+    VersionRangeAnd
 
 fromPackageName :: Cabal.PackageName -> Text
 fromPackageName = Text.pack . Cabal.unPackageName
 
 toPackageName :: Text -> Cabal.PackageName
 toPackageName = Cabal.mkPackageName . Text.unpack
+
+toPackageIdentifier :: PackageId -> Cabal.PackageIdentifier
+toPackageIdentifier PackageId{..} =
+  Cabal.PackageIdentifier
+    { Cabal.pkgName = toPackageName packageName
+    , Cabal.pkgVersion = toCabalVersion packageVersion
+    }

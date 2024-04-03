@@ -14,6 +14,7 @@ data PackageId = PackageId
   { packageName :: Text
   , packageVersion :: Version
   }
+  deriving (Show, Eq)
 
 renderPackageId :: PackageId -> Text
 renderPackageId PackageId{..} =

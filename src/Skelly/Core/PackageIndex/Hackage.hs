@@ -20,6 +20,7 @@ import Codec.Serialise qualified as Serialise
 import Codec.Serialise.Decoding qualified as Serialise
 import Codec.Serialise.Encoding qualified as Serialise
 import Control.Monad ((>=>))
+import Data.ByteString.Lazy qualified as ByteStringL
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
@@ -30,12 +31,14 @@ import Skelly.Core.PackageIndex.Interface
 import Skelly.Core.Paths (skellyCacheDir)
 import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.Hackage qualified as Hackage
+import Skelly.Core.Utils.PackageId (PackageId (..))
 import Skelly.Core.Utils.Version (
   Version,
   VersionRange (..),
  )
 import System.FilePath ((</>))
 import UnliftIO.Directory (doesFileExist)
+import UnliftIO.Exception (throwIO)
 
 data HackageOptions = HackageOptions
   { hackageURI :: URI
@@ -91,6 +94,14 @@ initPackageIndexCursor repo callbacks = do
                   { availableVersions = fromMaybe [] mAvailableVersions
                   , preferredVersionRange = fromMaybe AnyVersion mPreferredVersionRange
                   }
+      , lookupPackageInfo = \packageId@PackageId{..} ->
+          case Map.lookup packageName (packagePtrs ptrs) >>= Map.lookup packageVersion of
+            Nothing -> pure Nothing
+            Just ptr -> fmap Just $ do
+              let Hackage.IndexCallbacks{indexLookupFileEntry} = callbacks
+              Hackage.IndexEntry{indexEntryContent} <-
+                indexLookupFileEntry ptr (Hackage.IndexPkgCabal $ Cabal.toPackageIdentifier packageId)
+              either throwIO pure $ Cabal.parseCabalFile packageId (ByteStringL.toStrict indexEntryContent)
       }
 
 {----- IndexPtrs -----}
