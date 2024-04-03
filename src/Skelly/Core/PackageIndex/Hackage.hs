@@ -80,14 +80,14 @@ initPackageIndexCursor repo callbacks = do
   ptrs <- syncAndLoadIndexPtrs repo callbacks
   pure
     PackageIndexCursor
-      { lookupPackageByName = \name -> do
+      { lookupPackageVersions = \name -> do
           let mAvailableVersions = Map.keys <$> Map.lookup name (packagePtrs ptrs)
           mPreferredVersionRange <- getPreferredVersionRange callbacks ptrs name
           case (mPreferredVersionRange, mAvailableVersions) of
             (Nothing, Nothing) -> pure Nothing
             _ ->
               pure . Just $
-                PackageInfo
+                PackageVersions
                   { availableVersions = fromMaybe [] mAvailableVersions
                   , preferredVersionRange = fromMaybe AnyVersion mPreferredVersionRange
                   }

@@ -4,7 +4,7 @@ module Skelly.Core.PackageIndex (
   PackageIndex (..),
   PackageIndexCursor (..),
   PackageName,
-  PackageInfo (..),
+  PackageVersions (..),
 
   -- * Methods
   getLatestVersion,

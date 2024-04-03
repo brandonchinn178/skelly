@@ -8,7 +8,7 @@ module Skelly.Core.PackageIndex.Interface (
   PackageIndex (..),
   PackageIndexCursor (..),
   PackageName,
-  PackageInfo (..),
+  PackageVersions (..),
 
   -- * Methods
   getLatestVersion,
@@ -29,12 +29,12 @@ data PackageIndex = PackageIndex
   }
 
 data PackageIndexCursor = PackageIndexCursor
-  { lookupPackageByName :: PackageName -> IO (Maybe PackageInfo)
+  { lookupPackageVersions :: PackageName -> IO (Maybe PackageVersions)
   }
 
 type PackageName = Text
 
-data PackageInfo = PackageInfo
+data PackageVersions = PackageVersions
   { availableVersions :: [Version]
   , preferredVersionRange :: VersionRange
   }
@@ -43,8 +43,8 @@ getLatestVersion :: Service -> Text -> IO Version
 getLatestVersion Service{..} package =
   withPackageIndex $ \index ->
     withCursor index $ \PackageIndexCursor{..} -> do
-      PackageInfo{..} <-
-        lookupPackageByName package >>= maybe (throwIO $ UnknownPackage package) pure
+      PackageVersions{..} <-
+        lookupPackageVersions package >>= maybe (throwIO $ UnknownPackage package) pure
 
       case chooseBestVersion preferredVersionRange availableVersions of
         Nothing -> throwIO $ NoValidVersions package availableVersions preferredVersionRange
