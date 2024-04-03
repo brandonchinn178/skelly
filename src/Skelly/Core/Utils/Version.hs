@@ -18,6 +18,7 @@ module Skelly.Core.Utils.Version (
   CompiledVersionRange,
   compileRange,
   decompileRange,
+  singletonRange,
   intersectRange,
   isSingletonRange,
   inRange,
@@ -112,9 +113,8 @@ renderVersionRange = \case
 {----- Compilation -----}
 
 -- | A VersionRange compiled for fast queries.
-newtype CompiledVersionRange =
-  CompiledVersionRange
-    (Interval Version) -- ^ Invariant: Never empty
+newtype CompiledVersionRange = CompiledVersionRange (Interval Version) -- ^ Invariant: Interval is never empty
+  deriving (Show, Eq)
 
 compileRange :: VersionRange -> CompiledVersionRange
 compileRange = CompiledVersionRange . compile
@@ -167,6 +167,10 @@ intersectRange :: CompiledVersionRange -> CompiledVersionRange -> Maybe Compiled
 intersectRange (CompiledVersionRange i1) (CompiledVersionRange i2) =
   let i = i1 `Interval.intersection` i2
    in if Interval.null i then Nothing else Just (CompiledVersionRange i)
+
+-- | A helper for constructing a range matching just the given Version.
+singletonRange :: Version -> CompiledVersionRange
+singletonRange = compileRange . VersionWithOp VERSION_EQ
 
 -- | Return True if the given range contains a single version.
 isSingletonRange :: CompiledVersionRange -> Bool

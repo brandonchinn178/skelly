@@ -1,13 +1,5 @@
 module Skelly.Core.PackageIndex (
-  -- * Service
-  Service (..),
-  PackageIndex (..),
-  PackageIndexCursor (..),
-  PackageName,
-  PackageVersions (..),
-
-  -- * Methods
-  getLatestVersion,
+  module Skelly.Core.PackageIndex.Interface,
 
   -- * Implementations
   -- ** Hackage

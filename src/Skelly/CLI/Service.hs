@@ -8,6 +8,7 @@ module Skelly.CLI.Service (
 
 import Skelly.Core.Logging (LogLevel)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Utils.Hackage qualified as Hackage
 import Skelly.Core.Utils.HTTP qualified as HTTP
 
@@ -20,6 +21,7 @@ data Service = Service
   { loggingService :: Logging.Service
   , httpService :: HTTP.Service
   , hackageService :: Hackage.Service
+  , packageIndexService :: PackageIndex.Service
   }
 
 data Options = Options
@@ -31,4 +33,6 @@ initService Options{..} = do
   let loggingService = Logging.initService logLevel
   httpService <- HTTP.initService
   let hackageService = Hackage.initService loggingService httpService
+  -- TODO: allow user to configure the index provider + hackage opts
+  let packageIndexService = PackageIndex.initServiceHackage hackageService PackageIndex.defaultHackageOptions
   pure Service{..}

@@ -44,9 +44,9 @@ loadPackageDB distDir = do
     False -> do
       createDirectoryIfMissing True path
       homeDir <- getHomeDirectory
-      let pkgroot = homeDir </> ".ghcup/ghc/9.6.4/lib/ghc-9.6.4/lib"
+      let pkgroot = homeDir </> ".ghcup/ghc/9.6.5/lib/ghc-9.6.5/lib"
       callProcess "cp" ["-R", pkgroot </> "package.conf.d/", path]
-      callProcess "cp" ["-R", homeDir </> ".local/state/cabal/store/ghc-9.6.4/package.db/", path]
+      callProcess "cp" ["-R", homeDir </> ".local/state/cabal/store/ghc-9.6.5/package.db/", path]
       callProcess "sh" ["-c", "rm -rf " <> path <> "/sklly-0.0.0-*.conf"]
       callProcess "sh" ["-c", "sed -i.bak 's;${pkgroot};" <> pkgroot <> ";' " <> path <> "/*.conf"]
 

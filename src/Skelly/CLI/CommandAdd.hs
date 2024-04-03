@@ -53,8 +53,6 @@ commandAdd =
 execute :: CLI.Service -> Options -> IO ()
 execute CLI.Service{..} = run service
   where
-    -- TODO: allow user to configure the index provider + hackage opts
-    packageIndexService = PackageIndex.initServiceHackage hackageService PackageIndex.defaultHackageOptions
     service =
       Service
         { loggingService

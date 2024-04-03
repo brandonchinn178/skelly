@@ -29,6 +29,7 @@ data SkellyError
   | PackageIdNotFound PackageId
   | NoValidVersions Text [Version] VersionRange
   | BadCabalFile PackageId Text
+  | DependencyResolutionFailure -- ^ TODO: add conflict info
   deriving (Show)
 
 instance Exception SkellyError where
@@ -61,3 +62,4 @@ renderSkellyError = \case
       [ "Could not parse cabal file for " <> renderPackageId packageId <> ":"
       , msg
       ]
+  DependencyResolutionFailure -> "Failed to resolve dependencies"

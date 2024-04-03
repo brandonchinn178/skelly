@@ -41,6 +41,7 @@ import Skelly.Core.PackageDB (
  )
 import Skelly.Core.Parse (parseImports)
 import Skelly.Core.Paths (packageDistDir)
+import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Utils.Default (defaultOpts)
 import Skelly.Core.Utils.InstalledPackageInfo (InstalledPackageInfo (..))
 import Skelly.Core.Utils.Modules (
@@ -53,23 +54,26 @@ import Skelly.Core.Utils.Modules (
 import Skelly.Core.Utils.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Utils.PackageId qualified as PackageId
 import Skelly.Core.Utils.Path (listFiles)
-import Skelly.Core.Utils.Version (makeVersion)
+import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion)
 import System.Directory (getCurrentDirectory)
 import System.FilePath ((</>))
+import System.Exit (ExitCode (..), exitWith)
 import System.IO.Unsafe (unsafePerformIO)
-import System.Process (callProcess)
+import System.Process qualified as Process
 import UnliftIO.Async (pooledForConcurrently)
 import UnliftIO.Exception (throwIO)
 
 data Service = Service
   { loggingService :: Logging.Service
+  , solverService :: Solver.Service
   , loadPackageConfig :: IO PackageConfig
   }
 
-initService :: Logging.Service -> Service
-initService loggingService =
+initService :: Logging.Service -> Solver.Service -> Service
+initService loggingService solverService =
   Service
     { loggingService
+    , solverService
     , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
     }
 
@@ -133,15 +137,32 @@ run service@Service{..} Options{..} = do
   bins <- resolveTargets' (PackageConfig.packageBinaries pkg) binTargets
 
   -- TODO: getOrCreate lock file
+  let
+    libDeps =
+      [ dependencies
+      | PackageConfig.LibraryInfo{sharedInfo} <- Map.elems libs
+      , let PackageConfig.SharedInfo{dependencies} = sharedInfo
+      ]
+    binDeps =
+      [ dependencies
+      | PackageConfig.BinaryInfo{sharedInfo} <- Map.elems bins
+      , let PackageConfig.SharedInfo{dependencies} = sharedInfo
+      ]
+    allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
+  allTransitiveDeps <- Solver.run solverService allDeps
+  Logging.logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
 
   packageDb <- loadPackageDB distDir
-
-  -- TODO: build dependencies in packageDb
-  -- for now, assume dependencies are already built
+  -- TODO: parallelize
+  forM_ allTransitiveDeps $ \dep -> do
+    -- TODO: when tty, collapse logs like Yarn for NodeJS
+    let outDir = distDir </> Text.unpack (renderPackageId dep)
+    buildPlan <- configureDependency service dep
+    buildLibrary service packageDb outDir buildPlan
+    installLibrary service packageDb outDir buildPlan
 
   -- build libraries
   forM_ (Map.toList libs) $ \(name, libInfo) -> do
-    Logging.logInfo loggingService $ "Building library '" <> name <> "'..."
     let libraryId =
           PackageId
             { packageName = name
@@ -163,7 +184,7 @@ run service@Service{..} Options{..} = do
     -- TODO: get the directory where the hsproject.toml file is
     projectDir = unsafePerformIO getCurrentDirectory
     -- TODO: get actual GHC version
-    ghcVersion = makeVersion [9, 6, 4] -- 9.6.4
+    ghcVersion = makeVersion [9, 6, 5] -- 9.6.5
     distDir = packageDistDir projectDir ghcVersion
 
 {----- Build library -----}
@@ -173,6 +194,7 @@ data LibraryBuildPlan =
     { libraryId :: PackageId
     , libraryConfig :: PackageConfig.LibraryInfo
     , libraryModules :: [(ModuleName, FilePath)]
+    , librarySrcDir :: FilePath
     }
 
 getLibraryBuildPlan :: Service -> PackageId -> PackageConfig.LibraryInfo -> IO LibraryBuildPlan
@@ -180,6 +202,8 @@ getLibraryBuildPlan Service{..} libraryId libraryConfig = do
   -- find modules
   libraryModules <- filter (not . isMainModule . fst) . concat <$> mapM findModulesUnder sourceDirs
   Logging.logDebug loggingService $ "Found modules: " <> showModulesAndPaths libraryModules
+
+  let librarySrcDir = "."
 
   pure LibraryBuildPlan{..}
   where
@@ -193,13 +217,15 @@ getLibraryBuildPlan Service{..} libraryId libraryConfig = do
 -- TODO: color logs + parallelize
 buildLibrary :: Service -> PackageDB -> FilePath -> LibraryBuildPlan -> IO ()
 buildLibrary Service{..} packageDb outDir LibraryBuildPlan{..} = do
+  Logging.logInfo loggingService $ "Building library '" <> packageName <> "'..."
+
   modulesSorted <- sortModules loggingService libraryModules
 
   -- TODO: find specific GHC, log path to GHC
   -- FIXME: add all transitive deps
   -- FIXME: log command that's running
   -- FIXME: capture logs + stream to file + stream to stdout with DEBUG
-  ghcBuild packageDb sharedInfo . concat $
+  ghcBuild packageDb sharedInfo librarySrcDir . concat $
     [ ["-c"] <> map snd modulesSorted
     , ["-odir", outDir]
     , ["-hidir", outDir]
@@ -209,7 +235,7 @@ buildLibrary Service{..} packageDb outDir LibraryBuildPlan{..} = do
   -- https://downloads.haskell.org/~ghc/9.0.1/docs/html/users_guide/packages.html#building-a-package-from-haskell-source
   let packageFile = outDir </> packageFileName
   let outFiles = map ((outDir </>) . toOutFile . fst) modulesSorted
-  callProcess "ar" $ "cqs" : packageFile : outFiles
+  Process.callProcess "ar" $ "cqs" : packageFile : outFiles
 
   Logging.logInfo loggingService $ "Library built: " <> packageName
   where
@@ -275,19 +301,54 @@ installLibrary Service{..} packageDb installDir LibraryBuildPlan{..} = do
     PackageConfig.LibraryInfo{sharedInfo} = libraryConfig
     PackageConfig.SharedInfo{dependencies = libraryDependencies} = sharedInfo
 
+{----- Build dependency -----}
+
+configureDependency :: Service -> PackageId -> IO LibraryBuildPlan
+configureDependency _ dep = do
+  error "TODO: download dependency files" :: IO ()
+  error "TODO: parse modules from cabal file" :: IO ()
+  pure
+    LibraryBuildPlan
+      { libraryId = dep
+      , libraryConfig = undefined -- PackageConfig.LibraryInfo
+      , libraryModules = undefined -- [(ModuleName, FilePath)]
+      , librarySrcDir = undefined -- FilePath
+      }
+
 {----- Build binary -----}
 
 buildBinary :: PackageDB -> PackageConfig.BinaryInfo -> IO ()
-buildBinary packageDb PackageConfig.BinaryInfo{..} =
-  ghcBuild packageDb sharedInfo [mainFile]
+buildBinary packageDb PackageConfig.BinaryInfo{..} = do
+  let cwd = "."
+  ghcBuild packageDb sharedInfo cwd [mainFile]
+
+  -- the above line currently fails because we write out skelly-0.0.0.conf with
+  -- dependencies as `aeson-2.2.1.0`, but the package db cabal builds truncates
+  -- the id as `sn-2.2.1.0`. So we need to remove the package index hack and actually
+  -- build dependencies here
+  _ <- error "TODO"
+  pure ()
 
 {----- GHC -----}
 
-ghcBuild :: PackageDB -> PackageConfig.SharedInfo -> [String] -> IO ()
-ghcBuild packageDb PackageConfig.SharedInfo{dependencies} args =
-  callProcess "ghc" . concat $
-    [ args
-    , ["-package-db", packageDbPath packageDb]
-    , ["-hide-all-packages"]
-    , concatMap (\p -> ["-package", Text.unpack p]) . Map.keys $ dependencies
-    ]
+ghcBuild :: PackageDB -> PackageConfig.SharedInfo -> FilePath -> [String] -> IO ()
+ghcBuild packageDb PackageConfig.SharedInfo{dependencies} cwd args = do
+  let ghcProc =
+        (Process.proc ghcBin ghcArgs)
+          { Process.delegate_ctlc = True
+          , Process.cwd = Just cwd
+          }
+  Process.withCreateProcess ghcProc $ \_ _ _ h ->
+    Process.waitForProcess h >>= \case
+      ExitSuccess -> pure ()
+      code@(ExitFailure _) -> exitWith code
+  where
+    -- TODO: get ghc executable for the version to build with
+    ghcBin = "ghc"
+    ghcArgs =
+      concat
+        [ args
+        , ["-package-db", packageDbPath packageDb]
+        , ["-hide-all-packages"]
+        , concatMap (\p -> ["-package", Text.unpack p]) . Map.keys $ dependencies
+        ]

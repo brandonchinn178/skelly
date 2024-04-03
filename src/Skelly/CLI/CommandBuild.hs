@@ -6,6 +6,7 @@ import Options.Applicative
 import Skelly.CLI.Command
 import Skelly.CLI.Service qualified as CLI
 import Skelly.Core.Build qualified as Build
+import Skelly.Core.Solver qualified as Solver
 
 commandBuild :: Command
 commandBuild =
@@ -36,7 +37,8 @@ commandBuild =
 execute :: CLI.Service -> Build.Options -> IO ()
 execute CLI.Service{..} = Build.run service . resolveOpts
   where
-    service = Build.initService loggingService
+    solverService = Solver.initService packageIndexService
+    service = Build.initService loggingService solverService
 
     resolveOpts = resolveTargets
 

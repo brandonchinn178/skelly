@@ -9,10 +9,11 @@ module Skelly.Core.PackageIndex.Interface (
   PackageIndexCursor (..),
   PackageInfo (..),
   PackageName,
-  PackageVersions (..),
+  PackageVersionInfo (..),
 
   -- * Methods
   getLatestVersion,
+  getPackageVersions,
   getPackageDeps,
 ) where
 
@@ -34,27 +35,32 @@ data PackageIndex = PackageIndex
   }
 
 data PackageIndexCursor = PackageIndexCursor
-  { lookupPackageVersions :: PackageName -> IO (Maybe PackageVersions)
+  { lookupPackageVersionInfo :: PackageName -> IO (Maybe PackageVersionInfo)
   , lookupPackageInfo :: PackageId -> IO (Maybe PackageInfo)
   }
 
 type PackageName = Text
 
-data PackageVersions = PackageVersions
+data PackageVersionInfo = PackageVersionInfo
   { availableVersions :: [Version]
   , preferredVersionRange :: VersionRange
   }
 
-getLatestVersion :: Service -> Text -> IO Version
-getLatestVersion Service{..} package =
-  withPackageIndex $ \index ->
-    withCursor index $ \PackageIndexCursor{..} -> do
-      PackageVersions{..} <-
-        lookupPackageVersions package >>= maybe (throwIO $ UnknownPackage package) pure
+getLatestVersion :: Service -> PackageName -> IO Version
+getLatestVersion service package = do
+  PackageVersionInfo{..} <- getPackageVersionInfo service package
+  case chooseBestVersion (compileRange preferredVersionRange) availableVersions of
+    Nothing -> throwIO $ NoValidVersions package availableVersions preferredVersionRange
+    Just version -> pure version
 
-      case chooseBestVersion (compileRange preferredVersionRange) availableVersions of
-        Nothing -> throwIO $ NoValidVersions package availableVersions preferredVersionRange
-        Just version -> pure version
+getPackageVersions :: Service -> PackageName -> IO [Version]
+getPackageVersions service package = availableVersions <$> getPackageVersionInfo service package
+
+getPackageVersionInfo :: Service -> PackageName -> IO PackageVersionInfo
+getPackageVersionInfo Service{..} package =
+  withPackageIndex $ \index ->
+    withCursor index $ \PackageIndexCursor{..} ->
+      lookupPackageVersionInfo package >>= maybe (throwIO $ UnknownPackage package) pure
 
 getPackageDeps :: Service -> PackageId -> IO (Map PackageName VersionRange)
 getPackageDeps Service{..} packageId =
