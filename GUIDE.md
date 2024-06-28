@@ -97,7 +97,7 @@ All of the sections in `hspackage.toml` and `hsproject.toml` are prefixed with `
 
 Unit tests are specified in a `.spec.hs` file colocated with the module being tested. All definitions in the module, even non-exported ones, are available in the test file without importing.
 
-Unit tests use the `skelly-test` framework, and automatically includes the following imports, which puts all test definition identifiers (like `Spec`, `describe`, or `shouldBe`) into scope.
+Unit tests use the `skeletest` framework, and automatically includes the following imports, which puts all test definition identifiers (like `Spec`, `describe`, or `assert`) into scope.
 
 ```hs
 import Skelly.Test
