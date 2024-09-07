@@ -34,6 +34,20 @@ data Service = Service
 data PackageIndex = PackageIndex
   { withIndexCursor :: forall a. (PackageIndexCursor -> IO a) -> IO a
   , updateMetadata :: IO ()
+  , -- | Download the given package to the given directory
+    --
+    -- e.g. The following call creates the following directory tree:
+    --
+    -- >>> downloadPackageTo service (PackageId "foo" "0.0.0") "/tmp/packages/"
+    --
+    -- @
+    -- /tmp/packages/
+    -- `-- foo-0.0.0.tar.gz
+    -- `-- foo-0.0.0/
+    --     `-- foo.cabal
+    --     `-- Foo.hs
+    -- @
+    downloadPackage :: PackageId -> FilePath -> IO ()
   }
 
 data PackageIndexCursor = PackageIndexCursor

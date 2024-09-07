@@ -4,9 +4,11 @@
 module Skelly.Core.Logging (
   -- * Service
   Service (..),
+  Options (..),
   initService,
 
   -- * Methods
+  getLogLevel,
   logAt,
   logDebug,
   logInfo,
@@ -26,14 +28,20 @@ import Data.Text (Text)
 import Data.Text.IO qualified as Text
 
 data Service = Service
-  { doLog :: LogLevel -> Text -> IO ()
+  { options :: Options
+  , doLog :: LogLevel -> Text -> IO ()
   }
 
-initService :: LogLevel -> Service
-initService minLevel =
+data Options = Options
+  { logLevel :: LogLevel
+  }
+
+initService :: Options -> Service
+initService opts =
   Service
-    { doLog = \level msg ->
-        if level >= minLevel
+    { options = opts
+    , doLog = \level msg ->
+        if level >= logLevel opts
           then Text.putStrLn $ "[" <> displayLevel level <> "] " <> msg
           else pure ()
     }
@@ -51,6 +59,9 @@ displayLevel = \case
   LevelInfo -> "INFO"
   LevelWarn -> "WARN"
   LevelError -> "ERROR"
+
+getLogLevel :: Service -> LogLevel
+getLogLevel = logLevel . options
 
 logAt :: Service -> LogLevel -> Text -> IO ()
 logAt = doLog

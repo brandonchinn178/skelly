@@ -38,7 +38,7 @@ execute :: CLI.Service -> Build.Options -> IO ()
 execute CLI.Service{..} = Build.run service . resolveOpts
   where
     solverService = Solver.initService packageIndexService
-    service = Build.initService loggingService solverService
+    service = Build.initService loggingService packageIndexService solverService
 
     resolveOpts = resolveTargets
 

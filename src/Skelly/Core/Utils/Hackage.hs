@@ -9,6 +9,8 @@
 
 {- |
 Utilities for querying Hackage, or a server running a Hackage mirror.
+
+Fundamentally a wrapper around the hackage-security package.
 -}
 module Skelly.Core.Utils.Hackage (
   -- * Service
@@ -26,10 +28,10 @@ module Skelly.Core.Utils.Hackage (
   withBootstrappedRepo,
   runBootstrap,
   updateMetadata,
+  downloadPackageTarGz,
 
   -- * Repository
-  Hackage.Repository,
-  RemoteTemp,
+  Repository,
   getRepoRoot,
 
   -- * Re-exports
@@ -53,7 +55,7 @@ import Hackage.Security.Client.Repository qualified as Hackage
 import Hackage.Security.Client.Repository.Cache qualified as Cache
 import Hackage.Security.Client.Repository.HttpLib (HttpLib (HttpLib))
 import Hackage.Security.Client.Repository.HttpLib qualified as HttpLib
-import Hackage.Security.Client.Repository.Remote (RemoteTemp)
+import Hackage.Security.Client.Repository.Remote qualified as Hackage (RemoteTemp)
 import Hackage.Security.Client.Repository.Remote qualified as RemoteRepo
 import Hackage.Security.Util.Checked (Throws, handleChecked, throwChecked)
 import Hackage.Security.Util.Path (fromAbsoluteFilePath, (</>))
@@ -66,7 +68,11 @@ import Network.URI.Static qualified as URI
 import Skelly.Core.Error (SkellyError (..), SomeHackageError (..))
 import Skelly.Core.Logging (LogLevel (..), logAt, logDebug)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.HTTP qualified as HTTP
+import Skelly.Core.Utils.PackageId (PackageId (..))
+import System.FilePath (takeDirectory)
+import UnliftIO.Directory (createDirectoryIfMissing)
 import UnliftIO.Exception (handle, throwIO)
 
 {----- Service -----}
@@ -115,8 +121,10 @@ defaultHackageKeyThreshold = 3
 
 {----- Repository -----}
 
+type Repository = Hackage.Repository Hackage.RemoteTemp
+
 -- | Provide a Repository
-withRepo :: Service -> RepoOptions -> (Hackage.Repository RemoteTemp -> IO a) -> IO a
+withRepo :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
 withRepo service@Service{..} opts f = wrapHackageErrors $
   withBootstrappedRepo service opts $ \repo -> do
     -- Initialize Hackage repo if running for the first time
@@ -135,7 +143,7 @@ withRepo service@Service{..} opts f = wrapHackageErrors $
 
 -- | Same as 'withRepo', but assumes the repo has already been bootstrapped. Operations
 -- will fail if this is not the case.
-withBootstrappedRepo :: Service -> RepoOptions -> (Hackage.Repository RemoteTemp -> IO a) -> IO a
+withBootstrappedRepo :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
 withBootstrappedRepo Service{..} RepoOptions{..} =
   RemoteRepo.withRepository
     httpLib
@@ -165,21 +173,26 @@ withBootstrappedRepo Service{..} RepoOptions{..} =
     relPath :: FilePath -> Path.Path root
     relPath = Path.rootPath . Path.fragment
 
-runBootstrap :: RepoOptions -> Hackage.Repository RemoteTemp -> IO ()
+runBootstrap :: RepoOptions -> Repository -> IO ()
 runBootstrap RepoOptions{..} repo = wrapHackageErrors $
   Hackage.bootstrap
     repo
     (map (Hackage.KeyId . Text.unpack) hackageKeys)
     (Hackage.KeyThreshold $ fromIntegral hackageKeyThreshold)
 
-updateMetadata :: Hackage.Repository RemoteTemp -> IO ()
+updateMetadata :: Repository -> IO ()
 updateMetadata repo = wrapHackageErrors $ do
   now <- getCurrentTime
   _ <- Hackage.checkForUpdates repo (Just now)
   pure ()
 
+downloadPackageTarGz :: Repository -> PackageId -> FilePath -> IO ()
+downloadPackageTarGz repo packageId dest = wrapHackageErrors $ do
+  createDirectoryIfMissing True $ takeDirectory dest
+  Hackage.downloadPackage' repo (Cabal.toPackageIdentifier packageId) dest
+
 -- | Get the directory containing root.json.
-getRepoRoot :: Hackage.Repository RemoteTemp -> IO FilePath
+getRepoRoot :: Repository -> IO FilePath
 getRepoRoot repo = Path.toFilePath . Path.takeDirectory <$> Hackage.repGetCachedRoot repo
 
 {----- Helpers -----}
@@ -272,6 +285,7 @@ mkHackageLogger loggingService msg =
 wrapHackageErrors ::
   ( ( Throws Hackage.VerificationError
     , Throws Hackage.SomeRemoteError
+    , Throws Hackage.InvalidPackageException
     ) =>
     IO a
   ) ->
@@ -280,6 +294,7 @@ wrapHackageErrors m =
   id
     $ wrap @Hackage.VerificationError
     $ wrap @Hackage.SomeRemoteError
+    $ wrap @Hackage.InvalidPackageException
     $ m
   where
     wrap :: forall e a. Exception e => (Throws e => IO a) -> IO a

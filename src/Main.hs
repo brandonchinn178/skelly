@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
+module Main where
+
 import Options.Applicative
 import Skelly.CLI.Command
 import Skelly.CLI.CommandAdd
@@ -8,7 +10,7 @@ import Skelly.CLI.CommandClean
 import Skelly.CLI.CommandRun
 import Skelly.CLI.CommandTest
 import Skelly.CLI.Service qualified as CLI
-import Skelly.Core.Logging (LogLevel (..))
+import Skelly.Core.Logging qualified as Logging
 
 data Options = Options
   { cliCommand :: ParsedCommand
@@ -55,6 +57,9 @@ main = do
   service <-
     CLI.initService
       CLI.Options
-        { logLevel = if cliVerbose then LevelDebug else LevelInfo
+        { logOptions =
+            Logging.Options
+              { logLevel = if cliVerbose then Logging.LevelDebug else Logging.LevelInfo
+              }
         }
   executeCommand service cliCommand

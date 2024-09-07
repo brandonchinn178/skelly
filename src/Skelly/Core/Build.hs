@@ -16,13 +16,12 @@ module Skelly.Core.Build (
   Targets (..),
 ) where
 
-import Control.Monad (forM, forM_, unless)
+import Control.Monad (forM_, unless)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.Bifunctor (first)
 import Data.Either (partitionEithers)
 import Data.Foldable (toList)
-import Data.Graph qualified as Graph
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
@@ -31,25 +30,17 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Tuple (swap)
-import Skelly.Core.Error (SkellyError (..))
+import Skelly.Core.Logging (logDebug, logWarn)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
-import Skelly.Core.PackageDB (
-  PackageDB,
-  loadPackageDB,
-  packageDbEntries,
-  packageDbPath,
-  registerPackageInDB,
- )
-import Skelly.Core.Parse (parseImports)
-import Skelly.Core.Paths (packageDistDir)
+import Skelly.Core.PackageIndex qualified as PackageIndex
+-- import Skelly.Core.Parse (parseImports)
+import Skelly.Core.Paths (packageDistDir, skellyCacheDir)
 import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Utils.Default (defaultOpts)
-import Skelly.Core.Utils.InstalledPackageInfo (InstalledPackageInfo (..))
 import Skelly.Core.Utils.Modules (
-  ModuleName (ModuleName),
-  ModuleNameId (unModuleNameId),
+  ModuleName,
   isMainModule,
   parseModulePath,
   renderModuleName,
@@ -59,21 +50,23 @@ import Skelly.Core.Utils.PackageId qualified as PackageId
 import Skelly.Core.Utils.Path (listFiles)
 import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion, parseVersion)
 import System.Directory (getCurrentDirectory)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
 import System.Exit (ExitCode (..), exitWith)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Process qualified as Process
-import UnliftIO.Async (pooledForConcurrently)
-import UnliftIO.Exception (throwIO)
+-- import UnliftIO.Async (pooledForConcurrently)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
+import UnliftIO.Temporary (withSystemTempDirectory)
 
 data Service = Service
   { loggingService :: Logging.Service
+  , pkgIndexService :: PackageIndex.Service
   , solveDeps :: Solver.PackageDeps -> IO [PackageId]
   , loadPackageConfig :: IO PackageConfig
   }
 
-initService :: Logging.Service -> Solver.Service -> Service
-initService loggingService _ =
+initService :: Logging.Service -> PackageIndex.Service -> Solver.Service -> Service
+initService loggingService pkgIndexService _ =
   Service
     { loggingService
     , solveDeps =
@@ -88,8 +81,11 @@ initService loggingService _ =
             | Aeson.Object o <- toList pkgs
             , Just (Aeson.String name) <- pure $ Aeson.KeyMap.lookup "pkg-name" o
             , Just (Aeson.String versionText) <- pure $ Aeson.KeyMap.lookup "pkg-version" o
+            , Just (Aeson.String style) <- pure $ Aeson.KeyMap.lookup "style" o
             , Just version <- pure $ parseVersion versionText
+            , style == "global"
             ]
+    , pkgIndexService
     , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
     }
 
@@ -146,12 +142,13 @@ run service@Service{..} Options{..} = do
   let resolveTargets' components targets = do
         let (components', unknownTargets) = resolveTargets components targets
         unless (null unknownTargets) $
-          Logging.logWarn loggingService $
+          logWarn loggingService $
             "Unknown targets: " <> Text.intercalate ", " unknownTargets
         pure components'
   libs <- resolveTargets' (PackageConfig.packageLibraries pkg) libTargets
   bins <- resolveTargets' (PackageConfig.packageBinaries pkg) binTargets
 
+  -- TODO: check for Hackage updates
   -- TODO: getOrCreate lock file
   let
     libDeps =
@@ -165,44 +162,102 @@ run service@Service{..} Options{..} = do
       , let PackageConfig.SharedInfo{dependencies} = sharedInfo
       ]
     allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
-  Logging.logDebug loggingService "Resolving dependencies..."
+  logDebug loggingService "Resolving dependencies..."
   allTransitiveDeps <- solveDeps allDeps
-  Logging.logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
+  logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
 
-  packageDb <- loadPackageDB distDir
-  -- TODO: parallelize
-  forM_ allTransitiveDeps $ \dep -> do
-    -- TODO: when tty, collapse logs like Yarn for NodeJS
-    let outDir = distDir </> Text.unpack (renderPackageId dep)
-    buildPlan <- configureDependency service dep
-    buildLibrary service packageDb outDir buildPlan
-    installLibrary service packageDb outDir buildPlan
+  -- download deps
+  depInfos <-
+    PackageIndex.withPackageIndex pkgIndexService $ \index ->
+      PackageIndex.withIndexCursor index $ \cursor ->
+        mapM (downloadDep index cursor) allTransitiveDeps
 
-  -- build libraries
-  forM_ (Map.toList libs) $ \(name, libInfo) -> do
-    let libraryId =
-          PackageId
-            { packageName = name
-            , packageVersion = PackageConfig.packageVersion pkg
-            }
-    let outDir = distDir </> Text.unpack (renderPackageId libraryId)
-    buildPlan <- getLibraryBuildPlan service libraryId libInfo
-    buildLibrary service packageDb outDir buildPlan
-    installLibrary service packageDb outDir buildPlan
+  -- get library build plan
+  libPlans <-
+    flip mapM (Map.toList libs) $ \(name, libInfo) -> do
+      let libraryId =
+            PackageId
+              { packageName = name
+              , packageVersion = PackageConfig.packageVersion pkg
+              }
+      getLibraryBuildPlan service libraryId libInfo
+
+  -- rewrite binary files as module files
+  let binDir = distDir </> "gen"
+  let binFiles =
+        [ ( binName -- name of binary
+          , mainFile -- original file
+          , binDir </> Text.unpack ("Main_" <> binName <> ".hs") -- move file here
+          , binDir </> Text.unpack (binName <> ".hs") -- new file
+          )
+        | (binName, PackageConfig.BinaryInfo{mainFile}) <- Map.toList bins
+        ]
+  createDirectoryIfMissing True binDir
+  forM_ binFiles $ \(binName, binSrc, binModule, binNew) -> do
+    binContents <- Text.readFile binSrc
+    let modName = "Main_" <> binName
+    -- TODO: allow omitted Main module header
+    Text.writeFile binModule $ Text.replace "module Main" ("module " <> modName) binContents
+    Text.writeFile binNew . Text.unlines $
+      [ "{-# OPTIONS_GHC -w #-}"
+      , "import qualified " <> modName
+      , "main = " <> modName <> ".main"
+      ]
+
+  -- batch build
+  ghcBuild loggingService projectDir . concat $
+    [ ["-odir", distDir </> "out"]
+    , ["-hidir", distDir </> "out"]
+    , ["-i" <> dir | DepInfo{..} <- depInfos, dir <- depSrcDirs]
+    , [fp | LibraryBuildPlan{libraryModules} <- libPlans, (_, fp) <- libraryModules]
+    , [binModule | (_, _, binModule, _) <- binFiles]
+    ]
 
   -- build binaries
-  Logging.logDebug loggingService "Building binaries..."
-  forM_ (Map.toList bins) $ \(_, binInfo) ->
-    buildBinary packageDb binInfo
-
-  -- TODO: build tests
-  pure ()
+  forM_ binFiles $ \(binName, _, binModule, binNew) ->
+    ghcBuild loggingService projectDir . concat $
+      [ ["-odir", distDir </> "out"]
+      , ["-hidir", distDir </> "out"]
+      , ["-i" <> takeDirectory binModule]
+      , [binNew]
+      , ["-o", distDir </> "bin" </> Text.unpack binName]
+      ]
   where
-    -- TODO: get the directory where the hsproject.toml file is
+    -- TODO: get actual directory where the hsproject.toml file is
     projectDir = unsafePerformIO getCurrentDirectory
     -- TODO: get actual GHC version
-    ghcVersion = makeVersion [9, 6, 5] -- 9.6.5
+    ghcVersion = makeVersion [0, 0, 0]
     distDir = packageDistDir projectDir ghcVersion
+
+data DepInfo = DepInfo
+  { depSrcDirs :: [FilePath]
+  }
+
+downloadDep :: PackageIndex.PackageIndex -> PackageIndex.PackageIndexCursor -> PackageId -> IO DepInfo
+downloadDep index cursor pkgId = do
+  pkgInfo <- PackageIndex.getPackageInfo cursor pkgId
+  let srcDirs = map (dest </>) $ PackageIndex.packageSrcDirs pkgInfo
+
+  exists <- doesDirectoryExist dest
+  unless exists $ do
+    -- download package files
+    PackageIndex.downloadPackage index pkgId (takeDirectory dest) -- TODO: pass in exact dest instead of the parent
+
+    -- apply Cabal options to files
+    let header = "{-# LANGUAGE " <> (Text.intercalate "," . PackageIndex.packageDefaultExtensions) pkgInfo <> " #-}\n"
+    forM_ srcDirs $ \srcDir -> do
+      modules <- findModulesUnder srcDir
+      forM_ modules $ \(_, fp) ->
+        Text.writeFile fp . (header <>) =<< Text.readFile fp
+
+    -- TODO: write autogen cabal files
+
+  pure
+    DepInfo
+      { depSrcDirs = srcDirs
+      }
+  where
+    dest = skellyCacheDir </> "packages" </> (Text.unpack . renderPackageId) pkgId
 
 {----- Build library -----}
 
@@ -218,7 +273,7 @@ getLibraryBuildPlan :: Service -> PackageId -> PackageConfig.LibraryInfo -> IO L
 getLibraryBuildPlan Service{..} libraryId libraryConfig = do
   -- find modules
   libraryModules <- filter (not . isMainModule . fst) . concat <$> mapM findModulesUnder sourceDirs
-  Logging.logDebug loggingService $ "Found modules: " <> showModulesAndPaths libraryModules
+  logDebug loggingService $ "Found modules: " <> showModulesAndPaths libraryModules
 
   let librarySrcDir = "."
 
@@ -231,127 +286,47 @@ getLibraryBuildPlan Service{..} libraryId libraryConfig = do
       let showModuleAndPath (name, path) = renderModuleName name <> " (" <> Text.pack path <> ")"
        in Text.intercalate ", " . map showModuleAndPath
 
--- TODO: color logs + parallelize
-buildLibrary :: Service -> PackageDB -> FilePath -> LibraryBuildPlan -> IO ()
-buildLibrary Service{..} packageDb outDir LibraryBuildPlan{..} = do
-  Logging.logInfo loggingService $ "Building library '" <> packageName <> "'..."
-
-  modulesSorted <- sortModules loggingService libraryModules
-
-  -- TODO: find specific GHC, log path to GHC
-  -- FIXME: add all transitive deps
-  -- FIXME: log command that's running
-  -- FIXME: capture logs + stream to file + stream to stdout with DEBUG
-  ghcBuild packageDb sharedInfo librarySrcDir . concat $
-    [ ["-c"] <> map snd modulesSorted
-    , ["-odir", outDir]
-    , ["-hidir", outDir]
-    , ["-this-unit-id", Text.unpack $ renderPackageId libraryId]
-    ]
-
-  -- https://downloads.haskell.org/~ghc/9.0.1/docs/html/users_guide/packages.html#building-a-package-from-haskell-source
-  let packageFile = outDir </> packageFileName
-  let outFiles = map ((outDir </>) . toOutFile . fst) modulesSorted
-  Process.callProcess "ar" $ "cqs" : packageFile : outFiles
-
-  Logging.logInfo loggingService $ "Library built: " <> packageName
-  where
-    PackageId{packageName} = libraryId
-    PackageConfig.LibraryInfo{sharedInfo} = libraryConfig
-
-    packageFileName = Text.unpack $ "libHS" <> renderPackageId libraryId <> ".a"
-    toOutFile (ModuleName names) = Text.unpack $ Text.intercalate "/" (map unModuleNameId names) <> ".o"
-
 findModulesUnder :: FilePath -> IO [(ModuleName, FilePath)]
 findModulesUnder dir = mapMaybe parseModulePath' <$> listFiles defaultOpts dir
   where
     parseModulePath' file = (,dir </> file) <$> parseModulePath file
 
--- | Sort modules, where latter modules may import earlier modules.
-sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, FilePath)]
-sortModules loggingService modulesWithPath = do
-  moduleToImports <-
-    pooledForConcurrently modulesWithPath $ \(moduleName, path) -> do
-      let logProgress =
-            Logging.logDebug
-              ( Logging.addContext (renderModuleName moduleName)
-                  . Logging.addContext "parse-imports"
-                  $ loggingService
-              )
-      logProgress "Running..."
-      imports <- parseImports path <$> Text.readFile path
-      logProgress "Finished"
-      pure ((moduleName, path), imports)
-
-  let (modulesGraph, fromVertex, _) =
-        Graph.graphFromEdges
-          [ (path, moduleName, imports)
-          | ((moduleName, path), imports) <- moduleToImports
-          ]
-  let getModuleInfo v = let (path, moduleName, _) = fromVertex v in (moduleName, path)
-  pure $ map getModuleInfo $ Graph.reverseTopSort modulesGraph
-
-{----- Install library -----}
-
-installLibrary :: Service -> PackageDB -> FilePath -> LibraryBuildPlan -> IO ()
-installLibrary Service{..} packageDb installDir LibraryBuildPlan{..} = do
-  Logging.logInfo loggingService $ "Installing library " <> packageName <> "..."
-
-  pkgs <- packageDbEntries packageDb
-  deps <-
-    forM (Map.keys libraryDependencies) $ \dep ->
-      case Map.lookup dep pkgs of
-        Just depId -> pure depId
-        Nothing -> throwIO $ UnknownPackage dep
-
-  registerPackageInDB packageDb $
-    InstalledPackageInfo
-      { installedPackageId = libraryId
-      , installedPackageLocation = installDir
-      , installedPackageModules = map fst libraryModules
-      , installedPackageDeps = deps
-      }
-
-  Logging.logInfo loggingService $ "Library installed: " <> packageName
-  where
-    PackageId{packageName} = libraryId
-    PackageConfig.LibraryInfo{sharedInfo} = libraryConfig
-    PackageConfig.SharedInfo{dependencies = libraryDependencies} = sharedInfo
-
-{----- Build dependency -----}
-
-configureDependency :: Service -> PackageId -> IO LibraryBuildPlan
-configureDependency _ dep = do
-  error "TODO: download dependency files" :: IO ()
-  error "TODO: parse modules from cabal file" :: IO ()
-  pure
-    LibraryBuildPlan
-      { libraryId = dep
-      , libraryConfig = undefined -- PackageConfig.LibraryInfo
-      , libraryModules = undefined -- [(ModuleName, FilePath)]
-      , librarySrcDir = undefined -- FilePath
-      }
-
-{----- Build binary -----}
-
-buildBinary :: PackageDB -> PackageConfig.BinaryInfo -> IO ()
-buildBinary packageDb PackageConfig.BinaryInfo{..} = do
-  let cwd = "."
-  ghcBuild packageDb sharedInfo cwd [mainFile]
-
-  -- the above line currently fails because we write out skelly-0.0.0.conf with
-  -- dependencies as `aeson-2.2.1.0`, but the package db cabal builds truncates
-  -- the id as `sn-2.2.1.0`. So we need to remove the package index hack and actually
-  -- build dependencies here
-  _ <- error "TODO"
-  pure ()
+-- -- | Sort modules, where latter modules may import earlier modules.
+-- sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, FilePath)]
+-- sortModules loggingService modulesWithPath = do
+--   moduleToImports <-
+--     pooledForConcurrently modulesWithPath $ \(moduleName, path) -> do
+--       let logProgress =
+--             logDebug
+--               ( Logging.addContext (renderModuleName moduleName)
+--                   . Logging.addContext "parse-imports"
+--                   $ loggingService
+--               )
+--       logProgress "Running..."
+--       imports <- parseImports path <$> Text.readFile path
+--       logProgress "Finished"
+--       pure ((moduleName, path), imports)
+--
+--   let (modulesGraph, fromVertex, _) =
+--         Graph.graphFromEdges
+--           [ (path, moduleName, imports)
+--           | ((moduleName, path), imports) <- moduleToImports
+--           ]
+--   let getModuleInfo v = let (path, moduleName, _) = fromVertex v in (moduleName, path)
+--   pure $ map getModuleInfo $ Graph.reverseTopSort modulesGraph
 
 {----- GHC -----}
 
-ghcBuild :: PackageDB -> PackageConfig.SharedInfo -> FilePath -> [String] -> IO ()
-ghcBuild packageDb PackageConfig.SharedInfo{dependencies} cwd args = do
+-- TODO: log what modules are being built
+ghcBuild :: Logging.Service -> FilePath -> [String] -> IO ()
+ghcBuild loggingService cwd args' = withSystemTempDirectory "skelly-ghc" $ \tmpdir -> do
+  logDebug loggingService $ "Running ghc: " <> (Text.pack . show) args
+
+  let argFile = tmpdir </> "ghc-args"
+  writeFile argFile (unlines args)
+
   let ghcProc =
-        (Process.proc ghcBin ghcArgs)
+        (Process.proc ghcBin ["@" <> argFile])
           { Process.delegate_ctlc = True
           , Process.cwd = Just cwd
           }
@@ -362,10 +337,17 @@ ghcBuild packageDb PackageConfig.SharedInfo{dependencies} cwd args = do
   where
     -- TODO: get ghc executable for the version to build with
     ghcBin = "ghc"
-    ghcArgs =
+    args =
+      -- TODO: allow specifying ghc options on command line
+      -- TODO: -j
+      -- TODO: -O2 for release mode
+      -- TODO: -Wall
+      -- TODO: -Werror for only local
       concat
-        [ args
-        , ["-package-db", packageDbPath packageDb]
-        , ["-hide-all-packages"]
-        , concatMap (\p -> ["-package", Text.unpack p]) . Map.keys $ dependencies
+        [ case Logging.getLogLevel loggingService of
+            Logging.LevelDebug -> ["-v1"]
+            Logging.LevelInfo -> ["-v1"]
+            Logging.LevelWarn -> ["-v1"]
+            Logging.LevelError -> ["-v0"]
+        , args'
         ]

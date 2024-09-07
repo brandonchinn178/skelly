@@ -23,7 +23,7 @@ module Skelly.Core.Utils.Cabal (
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as Lazy (ByteString)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Maybe (listToMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, listToMaybe, mapMaybe, maybeToList)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -34,8 +34,10 @@ import Distribution.PackageDescription qualified as Cabal
 import Distribution.PackageDescription.Configuration qualified as Cabal
 import Distribution.PackageDescription.Parsec qualified as Cabal
 import Distribution.Parsec.Error qualified as Cabal
+import Distribution.Pretty qualified as Cabal
 import Distribution.Types.Version qualified as Cabal
 import Distribution.Types.VersionRange qualified as Cabal
+import Distribution.Utils.Path qualified as Cabal
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
 import Skelly.Core.Utils.Version (
@@ -60,7 +62,9 @@ parsePreferredVersions package =
       _ -> Nothing
 
 data PackageInfo = PackageInfo
-  { packageDependencies :: Map Text VersionRange
+  { packageSrcDirs :: [FilePath]
+  , packageDependencies :: Map Text VersionRange
+  , packageDefaultExtensions :: [Text]
   }
 
 parseCabalFile :: PackageId -> ByteString -> Either SkellyError PackageInfo
@@ -75,17 +79,21 @@ parseCabalFile packageId input = do
       Left (_cabalVersion, errors) ->
         Left . BadCabalFile packageId $
           Text.unlines . map renderPError . NonEmpty.toList $ errors
+  let lib = fromMaybe Cabal.emptyLibrary (Cabal.library pkg)
 
   pure
     PackageInfo
-      { packageDependencies =
-          case Cabal.library pkg of
-            Nothing -> Map.empty
-            Just lib ->
-              Map.fromList
-                [ (fromPackageName name, fromCabalVersionRange range)
-                | Cabal.Dependency name range _ <- (Cabal.targetBuildDepends . Cabal.libBuildInfo) lib
-                ]
+      { packageSrcDirs = map Cabal.getSymbolicPath . Cabal.hsSourceDirs . Cabal.libBuildInfo $ lib
+      , packageDependencies =
+          Map.fromList
+            [ (fromPackageName name, fromCabalVersionRange range)
+            | Cabal.Dependency name range _ <- (Cabal.targetBuildDepends . Cabal.libBuildInfo) lib
+            ]
+      , packageDefaultExtensions =
+          concat
+            [ map (Text.pack . Cabal.prettyShow) . Cabal.defaultExtensions . Cabal.libBuildInfo $ lib
+            , map (Text.pack . Cabal.prettyShow) . maybeToList . Cabal.defaultLanguage . Cabal.libBuildInfo $ lib
+            ]
       }
   where
     renderPError = Text.pack . Cabal.showPError (Text.unpack $ renderPackageId packageId)

@@ -15,6 +15,8 @@ module Skelly.Core.PackageIndex.Hackage (
   defaultHackageOptions,
 ) where
 
+import Codec.Archive.Tar qualified as Tar
+import Codec.Compression.GZip qualified as GZip
 import Codec.Serialise (Serialise)
 import Codec.Serialise qualified as Serialise
 import Codec.Serialise.Decoding qualified as Serialise
@@ -31,7 +33,7 @@ import Skelly.Core.PackageIndex.Interface
 import Skelly.Core.Paths (skellyCacheDir)
 import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.Hackage qualified as Hackage
-import Skelly.Core.Utils.PackageId (PackageId (..))
+import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
 import Skelly.Core.Utils.Version (
   Version,
   VersionRange (..),
@@ -68,15 +70,21 @@ initServiceHackage service HackageOptions{..} =
         , hackageCacheRoot = skellyCacheDir </> "package-index"
         }
 
-initPackageIndex :: Hackage.Repository Hackage.RemoteTemp -> PackageIndex
+initPackageIndex :: Hackage.Repository -> PackageIndex
 initPackageIndex repo =
   PackageIndex
     { withIndexCursor = \f -> Hackage.withIndex repo (initPackageIndexCursor repo >=> f)
     , updateMetadata = Hackage.updateMetadata repo
+    , downloadPackage = downloadPackage
     }
+  where
+    downloadPackage pkgId dest = do
+      let destTarGz = dest </> Text.unpack (renderPackageId pkgId <> ".tar.gz")
+      Hackage.downloadPackageTarGz repo pkgId destTarGz
+      Tar.unpack dest . Tar.read . GZip.decompress =<< ByteStringL.readFile destTarGz
 
 initPackageIndexCursor ::
-  Hackage.Repository Hackage.RemoteTemp
+  Hackage.Repository
   -> Hackage.IndexCallbacks
   -> IO PackageIndexCursor
 initPackageIndexCursor repo callbacks = do
@@ -142,7 +150,7 @@ instance Serialise IndexPtrs where
       _ -> fail "Invalid IndexPtrs encoding"
 
 syncAndLoadIndexPtrs ::
-  Hackage.Repository Hackage.RemoteTemp
+  Hackage.Repository
   -> Hackage.IndexCallbacks
   -> IO IndexPtrs
 syncAndLoadIndexPtrs repo Hackage.IndexCallbacks{..} = do
