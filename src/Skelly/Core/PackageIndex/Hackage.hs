@@ -71,7 +71,7 @@ initServiceHackage service HackageOptions{..} =
 initPackageIndex :: Hackage.Repository Hackage.RemoteTemp -> PackageIndex
 initPackageIndex repo =
   PackageIndex
-    { withCursor = \f -> Hackage.withIndex repo (initPackageIndexCursor repo >=> f)
+    { withIndexCursor = \f -> Hackage.withIndex repo (initPackageIndexCursor repo >=> f)
     , updateMetadata = Hackage.updateMetadata repo
     }
 

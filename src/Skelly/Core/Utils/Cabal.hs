@@ -31,6 +31,7 @@ import Data.Text qualified as Text
 import Data.Version qualified as Version
 import Distribution.Client.IndexUtils qualified as Cabal
 import Distribution.PackageDescription qualified as Cabal
+import Distribution.PackageDescription.Configuration qualified as Cabal
 import Distribution.PackageDescription.Parsec qualified as Cabal
 import Distribution.Parsec.Error qualified as Cabal
 import Distribution.Types.Version qualified as Cabal
@@ -69,7 +70,8 @@ parseCabalFile packageId input = do
 
   pkg <-
     case result of
-      Right Cabal.GenericPackageDescription{packageDescription = pkg} -> pure pkg
+      -- TODO: use finalizePD to resolve conditions correctly
+      Right pd -> pure $ Cabal.flattenPackageDescription pd
       Left (_cabalVersion, errors) ->
         Left . BadCabalFile packageId $
           Text.unlines . map renderPError . NonEmpty.toList $ errors

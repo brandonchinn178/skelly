@@ -12,12 +12,14 @@ module Skelly.Core.PackageIndex.Interface (
   PackageVersionInfo (..),
 
   -- * Methods
+  withCursor,
+  getPackageVersionInfo,
+  getPackageInfo,
+
+  -- * Helpers
   getLatestVersion,
-  getPackageVersions,
-  getPackageDeps,
 ) where
 
-import Data.Map (Map)
 import Data.Text (Text)
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Utils.Cabal (PackageInfo (..))
@@ -30,7 +32,7 @@ data Service = Service
   }
 
 data PackageIndex = PackageIndex
-  { withCursor :: forall a. (PackageIndexCursor -> IO a) -> IO a
+  { withIndexCursor :: forall a. (PackageIndexCursor -> IO a) -> IO a
   , updateMetadata :: IO ()
   }
 
@@ -46,26 +48,22 @@ data PackageVersionInfo = PackageVersionInfo
   , preferredVersionRange :: VersionRange
   }
 
-getLatestVersion :: Service -> PackageName -> IO Version
-getLatestVersion service package = do
-  PackageVersionInfo{..} <- getPackageVersionInfo service package
+withCursor :: Service -> (PackageIndexCursor -> IO a) -> IO a
+withCursor service f = withPackageIndex service $ \index -> withIndexCursor index f
+
+getPackageVersionInfo :: PackageIndexCursor -> PackageName -> IO PackageVersionInfo
+getPackageVersionInfo PackageIndexCursor{..} package =
+  lookupPackageVersionInfo package >>= maybe (throwIO $ UnknownPackage package) pure
+
+getPackageInfo :: PackageIndexCursor -> PackageId -> IO PackageInfo
+getPackageInfo PackageIndexCursor{..} packageId =
+  lookupPackageInfo packageId >>= maybe (throwIO $ PackageIdNotFound packageId) pure
+
+{----- Helpers -----}
+
+getLatestVersion :: PackageIndexCursor -> PackageName -> IO Version
+getLatestVersion cursor package = do
+  PackageVersionInfo{..} <- getPackageVersionInfo cursor package
   case chooseBestVersion (compileRange preferredVersionRange) availableVersions of
     Nothing -> throwIO $ NoValidVersions package availableVersions preferredVersionRange
     Just version -> pure version
-
-getPackageVersions :: Service -> PackageName -> IO [Version]
-getPackageVersions service package = availableVersions <$> getPackageVersionInfo service package
-
-getPackageVersionInfo :: Service -> PackageName -> IO PackageVersionInfo
-getPackageVersionInfo Service{..} package =
-  withPackageIndex $ \index ->
-    withCursor index $ \PackageIndexCursor{..} ->
-      lookupPackageVersionInfo package >>= maybe (throwIO $ UnknownPackage package) pure
-
-getPackageDeps :: Service -> PackageId -> IO (Map PackageName VersionRange)
-getPackageDeps Service{..} packageId =
-  withPackageIndex $ \index ->
-    withCursor index $ \PackageIndexCursor{..} ->
-      lookupPackageInfo packageId >>= \case
-        Nothing -> throwIO $ PackageIdNotFound packageId
-        Just info -> pure $ packageDependencies info

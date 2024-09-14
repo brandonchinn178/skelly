@@ -17,8 +17,11 @@ module Skelly.Core.Build (
 ) where
 
 import Control.Monad (forM, forM_, unless)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.Bifunctor (first)
 import Data.Either (partitionEithers)
+import Data.Foldable (toList)
 import Data.Graph qualified as Graph
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -54,7 +57,7 @@ import Skelly.Core.Utils.Modules (
 import Skelly.Core.Utils.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Utils.PackageId qualified as PackageId
 import Skelly.Core.Utils.Path (listFiles)
-import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion)
+import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion, parseVersion)
 import System.Directory (getCurrentDirectory)
 import System.FilePath ((</>))
 import System.Exit (ExitCode (..), exitWith)
@@ -65,15 +68,28 @@ import UnliftIO.Exception (throwIO)
 
 data Service = Service
   { loggingService :: Logging.Service
-  , solverService :: Solver.Service
+  , solveDeps :: Solver.PackageDeps -> IO [PackageId]
   , loadPackageConfig :: IO PackageConfig
   }
 
 initService :: Logging.Service -> Solver.Service -> Service
-initService loggingService solverService =
+initService loggingService _ =
   Service
     { loggingService
-    , solverService
+    , solveDeps =
+        -- TODO: implement solver
+        -- Solver.run solverService
+        \_ -> do
+          -- for now, read cabal's build plan for the Skelly bootstrap
+          Just plan <- Aeson.decodeFileStrict "bootstrap/build/dist-newstyle/cache/plan.json"
+          Just (Aeson.Array pkgs) <- pure $ Aeson.KeyMap.lookup "install-plan" plan
+          pure
+            [ PackageId name version
+            | Aeson.Object o <- toList pkgs
+            , Just (Aeson.String name) <- pure $ Aeson.KeyMap.lookup "pkg-name" o
+            , Just (Aeson.String versionText) <- pure $ Aeson.KeyMap.lookup "pkg-version" o
+            , Just version <- pure $ parseVersion versionText
+            ]
     , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
     }
 
@@ -149,7 +165,8 @@ run service@Service{..} Options{..} = do
       , let PackageConfig.SharedInfo{dependencies} = sharedInfo
       ]
     allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
-  allTransitiveDeps <- Solver.run solverService allDeps
+  Logging.logDebug loggingService "Resolving dependencies..."
+  allTransitiveDeps <- solveDeps allDeps
   Logging.logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
 
   packageDb <- loadPackageDB distDir

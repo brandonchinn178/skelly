@@ -58,7 +58,7 @@ execute CLI.Service{..} = run service
         { loggingService
         , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
         , savePackageConfig = PackageConfig.savePackageConfig
-        , getLatestVersion = PackageIndex.getLatestVersion packageIndexService
+        , getLatestVersion = \pkg -> PackageIndex.withCursor packageIndexService $ \cursor -> PackageIndex.getLatestVersion cursor pkg
         }
 
 {----- Execution -----}
