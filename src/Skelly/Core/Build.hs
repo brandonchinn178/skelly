@@ -17,11 +17,8 @@ module Skelly.Core.Build (
 ) where
 
 import Control.Monad (forM_, unless)
-import Data.Aeson qualified as Aeson
-import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.Bifunctor (first)
 import Data.Either (partitionEithers)
-import Data.Foldable (toList)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
@@ -48,7 +45,7 @@ import Skelly.Core.Utils.Modules (
 import Skelly.Core.Utils.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Utils.PackageId qualified as PackageId
 import Skelly.Core.Utils.Path (listFiles)
-import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion, parseVersion)
+import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion)
 import System.Directory (getCurrentDirectory)
 import System.FilePath (takeDirectory, (</>))
 import System.Exit (ExitCode (..), exitWith)
@@ -66,25 +63,10 @@ data Service = Service
   }
 
 initService :: Logging.Service -> PackageIndex.Service -> Solver.Service -> Service
-initService loggingService pkgIndexService _ =
+initService loggingService pkgIndexService solverService =
   Service
     { loggingService
-    , solveDeps =
-        -- TODO: implement solver
-        -- Solver.run solverService
-        \_ -> do
-          -- for now, read cabal's build plan for the Skelly bootstrap
-          Just plan <- Aeson.decodeFileStrict "bootstrap/build/dist-newstyle/cache/plan.json"
-          Just (Aeson.Array pkgs) <- pure $ Aeson.KeyMap.lookup "install-plan" plan
-          pure
-            [ PackageId name version
-            | Aeson.Object o <- toList pkgs
-            , Just (Aeson.String name) <- pure $ Aeson.KeyMap.lookup "pkg-name" o
-            , Just (Aeson.String versionText) <- pure $ Aeson.KeyMap.lookup "pkg-version" o
-            , Just (Aeson.String style) <- pure $ Aeson.KeyMap.lookup "style" o
-            , Just version <- pure $ parseVersion versionText
-            , style == "global"
-            ]
+    , solveDeps = Solver.run solverService
     , pkgIndexService
     , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
     }
@@ -214,10 +196,13 @@ run service@Service{..} Options{..} = do
     ]
 
   -- build binaries
+  createDirectoryIfMissing True $ distDir </> "bin"
   forM_ binFiles $ \(binName, _, binModule, binNew) ->
     ghcBuild loggingService projectDir . concat $
       [ ["-odir", distDir </> "out"]
       , ["-hidir", distDir </> "out"]
+      , ["-i" <> dir | DepInfo{..} <- depInfos, dir <- depSrcDirs]
+      , ["-i" <> dir | LibraryBuildPlan{librarySrcDirs} <- libPlans, dir <- librarySrcDirs]
       , ["-i" <> takeDirectory binModule]
       , [binNew]
       , ["-o", distDir </> "bin" </> Text.unpack binName]
@@ -266,7 +251,7 @@ data LibraryBuildPlan =
     { libraryId :: PackageId
     , libraryConfig :: PackageConfig.LibraryInfo
     , libraryModules :: [(ModuleName, FilePath)]
-    , librarySrcDir :: FilePath
+    , librarySrcDirs :: [FilePath]
     }
 
 getLibraryBuildPlan :: Service -> PackageId -> PackageConfig.LibraryInfo -> IO LibraryBuildPlan
@@ -275,7 +260,7 @@ getLibraryBuildPlan Service{..} libraryId libraryConfig = do
   libraryModules <- filter (not . isMainModule . fst) . concat <$> mapM findModulesUnder sourceDirs
   logDebug loggingService $ "Found modules: " <> showModulesAndPaths libraryModules
 
-  let librarySrcDir = "."
+  let librarySrcDirs = sourceDirs
 
   pure LibraryBuildPlan{..}
   where
