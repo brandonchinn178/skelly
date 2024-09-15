@@ -31,7 +31,7 @@ parseOptions =
         <*> verboseParser
 
     commandParser =
-      subparser . mconcat $
+      hsubparser . mconcat $
         [ command cmdName . info (fromCommand cmd) . mconcat $
             [ progDesc cmdDesc
             ]
@@ -44,6 +44,7 @@ parseOptions =
             ]
         ]
 
+    -- TODO: allow -v after subcommand
     verboseParser =
       switch . mconcat $
         [ long "verbose"

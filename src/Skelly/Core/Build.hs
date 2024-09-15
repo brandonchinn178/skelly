@@ -187,10 +187,18 @@ run service@Service{..} Options{..} = do
       ]
 
   -- batch build
+  let libDirs =
+        [ dir
+        | lib <- Map.elems $ PackageConfig.packageLibraries pkg
+        , let PackageConfig.LibraryInfo{sharedInfo} = lib
+        , let PackageConfig.SharedInfo{sourceDirs} = sharedInfo
+        , dir <- sourceDirs
+        ]
   ghcBuild loggingService projectDir . concat $
     [ ["-odir", distDir </> "out"]
     , ["-hidir", distDir </> "out"]
     , ["-i" <> dir | DepInfo{..} <- depInfos, dir <- depSrcDirs]
+    , ["-i" <> dir | dir <- libDirs]
     , [fp | LibraryBuildPlan{libraryModules} <- libPlans, (_, fp) <- libraryModules]
     , [binModule | (_, _, binModule, _) <- binFiles]
     ]
@@ -202,7 +210,7 @@ run service@Service{..} Options{..} = do
       [ ["-odir", distDir </> "out"]
       , ["-hidir", distDir </> "out"]
       , ["-i" <> dir | DepInfo{..} <- depInfos, dir <- depSrcDirs]
-      , ["-i" <> dir | LibraryBuildPlan{librarySrcDirs} <- libPlans, dir <- librarySrcDirs]
+      , ["-i" <> dir | dir <- libDirs]
       , ["-i" <> takeDirectory binModule]
       , [binNew]
       , ["-o", distDir </> "bin" </> Text.unpack binName]
@@ -246,6 +254,7 @@ downloadDep index cursor pkgId = do
 
 {----- Build library -----}
 
+-- TODO: cleanup
 data LibraryBuildPlan =
   LibraryBuildPlan
     { libraryId :: PackageId
