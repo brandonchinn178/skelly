@@ -76,12 +76,16 @@ def test():
         dest = dest.with_stem(dest.stem.replace(".spec", "Spec"))
 
         test_module_name = module_name + "Spec"
-        test_file_lines = f.read_text().splitlines()
+        test_file = f.read_text()
+        test_file_lines = test_file.splitlines()
         body_start_line = len(list(itertools.takewhile(lambda s: re.match(r"{-#|\s*$", s) is not None, test_file_lines)))
         test_file_lines = [
             *test_file_lines[:body_start_line],
             f"module {test_module_name} where",
             f"import Skeletest",
+            *(["import qualified Skeletest.Predicate as P"] if re.search(r"\bP\.\w", test_file) else []),
+            *(["import qualified Skeletest.Prop.Gen as Gen"] if re.search(r"\bGen\.\w", test_file) else []),
+            *(["import qualified Skeletest.Prop.Range as Range"] if re.search(r"\bRange\.\w", test_file) else []),
             f"import {module_name}",
             f"{{-# LINE {body_start_line + 1} \"{f.relative_to(TOP)}\" #-}}",
             *test_file_lines[body_start_line:],
@@ -107,9 +111,11 @@ def test():
         *(f"    {s}" for s in test_modules),
         "  build-depends:",
         "    base,",
+        "    containers,",
         "    skelly,",
         "    skeletest,",
         "    text,",
+        "    unliftio,",
     ]
     cabal = (BUILD_DIR / "skelly.cabal").read_text()
     (BUILD_DIR / "skelly.cabal").write_text(cabal + "\n" + "\n".join(cabal_lines) + "\n")

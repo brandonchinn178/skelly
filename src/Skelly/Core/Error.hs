@@ -30,7 +30,7 @@ data SkellyError
   | NoValidVersions Text [Version] VersionRange
   | BadCabalFile PackageId Text
   | DependencyResolutionFailure -- ^ TODO: add conflict info
-  deriving (Show)
+  deriving (Show, Eq)
 
 instance Exception SkellyError where
   displayException = Text.unpack . renderSkellyError
@@ -39,6 +39,9 @@ data SomeHackageError = forall e. Exception e => MkSomeHackageError e
 
 instance Show SomeHackageError where
   show (MkSomeHackageError e) = show e
+instance Eq SomeHackageError where
+  -- hacky, but good enough
+  MkSomeHackageError e1 == MkSomeHackageError e2 = show e1 == show e2
 
 renderSkellyError :: SkellyError -> Text
 renderSkellyError = \case
