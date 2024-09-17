@@ -6,6 +6,9 @@ import sys
 if sys.version_info < (3, 11):
     raise Exception("Bootstrap build requires at least Python 3.11")
 
+import itertools
+import re
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -18,6 +21,12 @@ DIST_DIR = HERE / "dist"
 SRC_DIR = TOP / "src"
 
 def main():
+    if sys.argv[1:2] == ["test"]:
+        test()
+    else:
+        build()
+
+def init_build_dir():
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     if not (BUILD_DIR / "src").exists():
         (BUILD_DIR / "src").symlink_to(TOP / "src")
@@ -31,15 +40,79 @@ def main():
     subprocess.run(
         [
             "cabal",
-            "install",
+            "configure",
             "-w", f"ghc-{ghc_version}",
-            "--overwrite-policy=always",
+            "--enable-tests",
+        ],
+        cwd=BUILD_DIR,
+        check=True,
+    )
+
+def build():
+    init_build_dir()
+    subprocess.run(
+        [
+            "cabal",
+            "install",
             "--install-method=symlink",
+            "--overwrite-policy=always",
             f"--installdir={DIST_DIR}",
         ],
         cwd=BUILD_DIR,
         check=True,
     )
+
+# TODO: remove when `skelly test` works
+def test():
+    init_build_dir()
+
+    shutil.rmtree(BUILD_DIR / "test", ignore_errors=True)
+    test_modules = []
+    for f in (TOP / "src").rglob("*.spec.hs"):
+        path = f.relative_to(TOP / "src")
+        module_name = path.as_posix().replace('.spec.hs', '').replace('/', '.')
+
+        dest = BUILD_DIR / "test" / path
+        dest = dest.with_stem(dest.stem.replace(".spec", "Spec"))
+
+        test_module_name = module_name + "Spec"
+        test_file_lines = f.read_text().splitlines()
+        body_start_line = len(list(itertools.takewhile(lambda s: re.match(r"{-#|\s*$", s) is not None, test_file_lines)))
+        test_file_lines = [
+            *test_file_lines[:body_start_line],
+            f"module {test_module_name} where",
+            f"import Skeletest",
+            f"import {module_name}",
+            f"{{-# LINE {body_start_line + 1} \"{f.relative_to(TOP)}\" #-}}",
+            *test_file_lines[body_start_line:],
+        ]
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("\n".join(test_file_lines))
+
+        test_modules += [test_module_name]
+
+    (BUILD_DIR / "test" / "Main.hs").write_text("import Skeletest.Main")
+
+    cabal_lines = [
+        "test-suite skelly-test",
+        "  type: exitcode-stdio-1.0",
+        "  hs-source-dirs: test",
+        "  ghc-options: -Wall -Werror -F -pgmF=skeletest-preprocessor",
+        "  build-tool-depends: skeletest:skeletest-preprocessor",
+        "  default-language: Haskell2010",
+        "  main-is: Main.hs",
+        "  other-modules:",
+        *(f"    {s}" for s in test_modules),
+        "  build-depends:",
+        "    base,",
+        "    skelly,",
+        "    skeletest,",
+    ]
+    cabal = (BUILD_DIR / "skelly.cabal").read_text()
+    (BUILD_DIR / "skelly.cabal").write_text(cabal + "\n" + "\n".join(cabal_lines) + "\n")
+
+    subprocess.run(["cabal", "test"], cwd=BUILD_DIR, check=True)
 
 class HsPackage(NamedTuple):
     config: dict[str, Any]
@@ -127,6 +200,8 @@ class HsPackage(NamedTuple):
             f = f.relative_to(SRC_DIR)
 
             if f.name == "Main.hs":
+                continue
+            if f.suffixes[0] == ".spec":
                 continue
 
             modules.append(".".join([*f.parts[0:-1], f.stem]))
