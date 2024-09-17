@@ -54,10 +54,10 @@ initService pkgIndexService =
 run :: Service -> PackageDeps -> IO [PackageId]
 run Service{..} deps0 =
   withCursor $ \cursor ->
-    runMaybeT (go cursor (compileDeps deps0) (Map.keys deps0))
+    runMaybeT (compileDeps deps0 >>= \deps0' -> go cursor deps0' (Map.keys deps0))
       >>= maybe (throwIO DependencyResolutionFailure) pure
   where
-    compileDeps = Map.Strict.fromAscList . Map.toAscList . fmap compileRange
+    compileDeps = fmap (Map.Strict.fromAscList . Map.toAscList) . traverse (MaybeT.hoistMaybe . compileRange)
 
     -- TODO: restrict builtin packages like base?
     go ::
@@ -82,7 +82,7 @@ run Service{..} deps0 =
                 [ do
                     -- TODO: logging
                     -- get package dependencies
-                    pkgDeps <- liftIO $ getPackageDeps cursor pkgId
+                    pkgDeps <- liftIO (getPackageDeps cursor pkgId) >>= compileDeps
                     -- update constraints, failing if any conflicts are found
                     deps' <-
                       Map.Strict.mergeA
@@ -90,7 +90,7 @@ run Service{..} deps0 =
                         Map.Strict.preserveMissing
                         (Map.Strict.zipWithAMatched $ \_ r1 r2 -> MaybeT.hoistMaybe $ intersectRange r1 r2)
                         deps
-                        (compileDeps pkgDeps)
+                        pkgDeps
                     -- set version for current package and recurse
                     (pkgId :) <$> go cursor (Map.Strict.insert pkgName (singletonRange pkgVer) deps') rest
                 | pkgVer <- versions

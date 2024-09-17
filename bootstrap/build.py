@@ -101,6 +101,7 @@ def test():
         "  ghc-options: -Wall -Werror -F -pgmF=skeletest-preprocessor",
         "  build-tool-depends: skeletest:skeletest-preprocessor",
         "  default-language: Haskell2010",
+        "  default-extensions: ImportQualifiedPost",
         "  main-is: Main.hs",
         "  other-modules:",
         *(f"    {s}" for s in test_modules),
@@ -108,6 +109,7 @@ def test():
         "    base,",
         "    skelly,",
         "    skeletest,",
+        "    text,",
     ]
     cabal = (BUILD_DIR / "skelly.cabal").read_text()
     (BUILD_DIR / "skelly.cabal").write_text(cabal + "\n" + "\n".join(cabal_lines) + "\n")

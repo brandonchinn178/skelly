@@ -24,7 +24,7 @@ import Data.Text (Text)
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Utils.Cabal (PackageInfo (..))
 import Skelly.Core.Utils.PackageId (PackageId)
-import Skelly.Core.Utils.Version (Version, VersionRange, chooseBestVersion, compileRange)
+import Skelly.Core.Utils.Version (Version, VersionRange, chooseBestVersion)
 import UnliftIO.Exception (throwIO)
 
 data Service = Service
@@ -78,6 +78,6 @@ getPackageInfo PackageIndexCursor{..} packageId =
 getLatestVersion :: PackageIndexCursor -> PackageName -> IO Version
 getLatestVersion cursor package = do
   PackageVersionInfo{..} <- getPackageVersionInfo cursor package
-  case chooseBestVersion (compileRange preferredVersionRange) availableVersions of
+  case chooseBestVersion preferredVersionRange availableVersions of
     Nothing -> throwIO $ NoValidVersions package availableVersions preferredVersionRange
     Just version -> pure version

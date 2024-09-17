@@ -17,7 +17,6 @@ module Skelly.Core.Utils.Version (
   -- * Range resolution
   CompiledVersionRange,
   compileRange,
-  decompileRange,
   singletonRange,
   intersectRange,
   isSingletonRange,
@@ -26,6 +25,8 @@ module Skelly.Core.Utils.Version (
   getVersionPreferences,
 ) where
 
+import Control.Applicative ((<|>))
+import Control.Monad (guard)
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
 import Data.List qualified as List
@@ -113,74 +114,68 @@ renderVersionRange = \case
 {----- Compilation -----}
 
 -- | A VersionRange compiled for fast queries.
-newtype CompiledVersionRange = CompiledVersionRange (Interval Version) -- ^ Invariant: Interval is never empty
+data CompiledVersionRange
+  = CompiledVersionRange (Interval Version) -- ^ Invariant: Interval is never empty
+  | CompiledVersionRangeOr CompiledVersionRange CompiledVersionRange
   deriving (Show, Eq)
 
-compileRange :: VersionRange -> CompiledVersionRange
-compileRange = CompiledVersionRange . compile
+compileRange :: VersionRange -> Maybe CompiledVersionRange
+compileRange = go
   where
-    compile = \case
-      AnyVersion -> Interval.whole
-      VersionWithOp VERSION_LT v -> Interval.NegInf Interval.<..< Interval.Finite v
-      VersionWithOp VERSION_LTE v -> Interval.NegInf Interval.<..<= Interval.Finite v
-      VersionWithOp VERSION_EQ v -> Interval.singleton v
-      VersionWithOp VERSION_GT v -> Interval.Finite v Interval.<..< Interval.PosInf
-      VersionWithOp VERSION_GTE v -> Interval.Finite v Interval.<=..< Interval.PosInf
-      VersionWithOp VERSION_PVP_MAJOR v -> Interval.Finite v Interval.<=..< Interval.Finite (nextPvpVersion v)
-      VersionRangeAnd l r -> compile l `Interval.intersection` compile r
-      VersionRangeOr l r -> compile l `Interval.hull` compile r
+    range = pure . CompiledVersionRange
+    go = \case
+      AnyVersion -> range Interval.whole
+      VersionWithOp VERSION_LT v -> range $ Interval.NegInf Interval.<..< Interval.Finite v
+      VersionWithOp VERSION_LTE v -> range $ Interval.NegInf Interval.<..<= Interval.Finite v
+      VersionWithOp VERSION_EQ v -> range $ Interval.singleton v
+      VersionWithOp VERSION_GT v -> range $ Interval.Finite v Interval.<..< Interval.PosInf
+      VersionWithOp VERSION_GTE v -> range $ Interval.Finite v Interval.<=..< Interval.PosInf
+      VersionWithOp VERSION_PVP_MAJOR v -> range $ Interval.Finite v Interval.<=..< Interval.Finite (nextPvpVersion v)
+      VersionRangeAnd l r -> do
+        l' <- go l
+        r' <- go r
+        intersectRange l' r'
+      VersionRangeOr l r -> CompiledVersionRangeOr <$> go l <*> go r
 
     nextPvpVersion v =
       case take 2 (Version.versionBranch v) <> repeat 0 of
         x : y : _ -> makeVersion [x, y + 1]
         l -> error $ "list was unexpectedly not infinite: " ++ show l
 
-decompileRange :: CompiledVersionRange -> VersionRange
-decompileRange (CompiledVersionRange i) =
-  case (Interval.lowerBound' i, Interval.upperBound' i) of
-    ((Interval.NegInf, _), (Interval.NegInf, _)) -> invariantViolation
-    ((Interval.NegInf, _), (Interval.Finite v, b)) -> VersionWithOp (toLT b) v
-    ((Interval.NegInf, _), (Interval.PosInf, _)) -> AnyVersion
-    ((Interval.Finite _, _), (Interval.NegInf, _)) -> invariantViolation
-    ((Interval.Finite v1, b1), (Interval.Finite v2, b2)) ->
-      case compare v1 v2 of
-        LT -> VersionRangeAnd (VersionWithOp (toGT b1) v1) (VersionWithOp (toLT b2) v2)
-        EQ -> VersionWithOp VERSION_EQ v1
-        GT -> VersionRangeAnd (VersionWithOp (toLT b1) v1) (VersionWithOp (toGT b2) v2)
-    ((Interval.Finite v, b), (Interval.PosInf, _)) -> VersionWithOp (toGT b) v
-    ((Interval.PosInf, _), (Interval.NegInf, _)) -> invariantViolation
-    ((Interval.PosInf, _), (Interval.Finite _, _)) -> invariantViolation
-    ((Interval.PosInf, _), (Interval.PosInf, _)) -> invariantViolation
-  where
-    toGT = \case
-      Interval.Open -> VERSION_GT
-      Interval.Closed -> VERSION_GTE
-    toLT = \case
-      Interval.Open -> VERSION_LT
-      Interval.Closed -> VERSION_LTE
-
-    -- can't happen, because the interval should never be empty
-    invariantViolation = error $ "Compiled version range was unexpectedly empty: " ++ show i
-
 -- | Return the intersection of the two ranges, or Nothing if the ranges are incompatible.
 intersectRange :: CompiledVersionRange -> CompiledVersionRange -> Maybe CompiledVersionRange
-intersectRange (CompiledVersionRange i1) (CompiledVersionRange i2) =
-  let i = i1 `Interval.intersection` i2
-   in if Interval.null i then Nothing else Just (CompiledVersionRange i)
+intersectRange = curry $ \case
+  (CompiledVersionRange i1, CompiledVersionRange i2) -> do
+    let i = i1 `Interval.intersection` i2
+    guard $ (not . Interval.null) i
+    pure $ CompiledVersionRange i
+  (r, CompiledVersionRangeOr r1 r2) -> distribute r (r1, r2)
+  (CompiledVersionRangeOr r1 r2, r) -> distribute r (r1, r2)
+  where
+    distribute r (r1, r2) =
+      case (intersectRange r r1, intersectRange r r2) of
+        (Just o1, Just o2) -> pure $ CompiledVersionRangeOr o1 o2
+        (o1, o2) -> o1 <|> o2
 
 -- | A helper for constructing a range matching just the given Version.
 singletonRange :: Version -> CompiledVersionRange
-singletonRange = compileRange . VersionWithOp VERSION_EQ
+singletonRange = CompiledVersionRange . Interval.singleton
 
 -- | Return True if the given range contains a single version.
 isSingletonRange :: CompiledVersionRange -> Bool
-isSingletonRange (CompiledVersionRange i) = Interval.isSingleton i
+isSingletonRange = \case
+  CompiledVersionRange i -> Interval.isSingleton i
+  CompiledVersionRangeOr _ _ -> False
 
 inRange :: CompiledVersionRange -> Version -> Bool
-inRange (CompiledVersionRange i) v = v `Interval.member` i
+inRange = \case
+  CompiledVersionRange i -> (`Interval.member` i)
+  CompiledVersionRangeOr i1 i2 -> \v -> inRange i1 v || inRange i2 v
 
-chooseBestVersion :: CompiledVersionRange -> [Version] -> Maybe Version
-chooseBestVersion range = listToMaybe . getVersionPreferences range
+chooseBestVersion :: VersionRange -> [Version] -> Maybe Version
+chooseBestVersion range' vs = do
+  range <- compileRange range'
+  listToMaybe $ getVersionPreferences range vs
 
 -- | Return a list of Versions that match the given range, from most recent to least.
 getVersionPreferences :: CompiledVersionRange -> [Version] -> [Version]
