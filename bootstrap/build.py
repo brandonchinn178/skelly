@@ -22,7 +22,7 @@ SRC_DIR = TOP / "src"
 
 def main():
     if sys.argv[1:2] == ["test"]:
-        test()
+        test(sys.argv[2:])
     else:
         build()
 
@@ -43,6 +43,7 @@ def init_build_dir():
             "configure",
             "-w", f"ghc-{ghc_version}",
             "--enable-tests",
+            "--test-show-details=streaming",
         ],
         cwd=BUILD_DIR,
         check=True,
@@ -63,7 +64,7 @@ def build():
     )
 
 # TODO: remove when `skelly test` works
-def test():
+def test(args):
     init_build_dir()
 
     shutil.rmtree(BUILD_DIR / "test", ignore_errors=True)
@@ -120,7 +121,7 @@ def test():
     cabal = (BUILD_DIR / "skelly.cabal").read_text()
     (BUILD_DIR / "skelly.cabal").write_text(cabal + "\n" + "\n".join(cabal_lines) + "\n")
 
-    subprocess.run(["cabal", "test"], cwd=BUILD_DIR, check=True)
+    subprocess.run(["cabal", "test", *(f"--test-option={arg}" for arg in args)], cwd=BUILD_DIR, check=True)
 
 class HsPackage(NamedTuple):
     config: dict[str, Any]

@@ -233,6 +233,7 @@ downloadDep index cursor pkgId = do
 
   exists <- doesDirectoryExist dest
   unless exists $ do
+    -- TODO: don't download built-in packages like base, text, etc. use already precompiled versions
     -- download package files
     PackageIndex.downloadPackage index pkgId (takeDirectory dest) -- TODO: pass in exact dest instead of the parent
 

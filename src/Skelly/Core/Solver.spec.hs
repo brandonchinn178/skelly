@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
+import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
 import Data.Map qualified as Map
@@ -73,31 +74,16 @@ spec = do
     liftIO (run (mkService' index) (toPackageDeps input))
       `shouldSatisfy` P.returns (map packageName P.>>> P.eq expected)
 
-  prop "efficiently backtracks" $ do
-    -- project => A, B
-    -- A (2.1, 2.2, ..., 1.0, 2.10, 2.11, ...) => []
-    -- B (1.0) => A ^1.0
-    nameA <- forAll genName
-    nameB <- forAll $ Gen.filterT (/= nameA) genName
-    numA_2_before <- forAll $ Gen.int (Range.linear 1 100)
-    numA_2_after <- forAll $ Gen.int (Range.linear 1 100)
-    let index =
-          concat
-            [ [(PackageId nameA (makeVersion [2, i]), []) | i <- [1 .. numA_2_before]]
-            , [(PackageId nameA (makeVersion [1, 0]), [])]
-            , [(PackageId nameA (makeVersion [2, numA_2_before + i]), []) | i <- [1 .. numA_2_after]]
-            , [(PackageId nameB (makeVersion [1, 0]), [(nameA, "^1.0")])]
-            ]
-        input = toPackageDeps [(nameA, "*"), (nameB, "*")]
-        expected =
-          [ PackageId nameA (makeVersion [1, 0])
-          , PackageId nameB (makeVersion [1, 0])
-          ]
-    liftIO (run (mkService' index) input) `shouldSatisfy` P.returns (P.eq expected)
-
   it "throws when resolution fails" $ do
     runSolver (mkService [("foo-2.0", [])]) [("foo", "^1.0")]
       `shouldSatisfy` P.throws (P.eq DependencyResolutionFailure)
+
+  -- TODO: test helpful message with multiple backtracking failures
+
+  describe "regression tests" $ do
+    forM_ regressionTests $ \RegressionTest{..} ->
+      it label $ do
+        runSolver (mkService index) input `shouldSatisfy` P.returns (P.eq expected)
 
 genName :: Gen Text
 genName = Gen.text (Range.linear 1 20) $ Gen.frequency [(10, Gen.alphaNum), (1, pure '-')]
@@ -143,3 +129,44 @@ mkService' index =
         [ (packageName, Map.singleton packageVersion (toPackageDeps deps))
         | (PackageId{..}, deps) <- index
         ]
+
+showVer :: Int -> Text
+showVer = Text.pack . show
+
+{----- Regression tests -----}
+
+data RegressionTest = RegressionTest
+  { label :: String
+  , index :: [(Text, PackageDepsList)]
+  , input :: PackageDepsList
+  , expected :: [Text]
+  }
+
+regressionTests :: [RegressionTest]
+regressionTests =
+  [ RegressionTest
+      { label = "base + <lots of branches> + filepath"
+      , index =
+          concat
+            [ [("base-" <> showVer i, []) | i <- [1 .. 10]]
+            , [("bytestring-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [("containers-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [("directory-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [("filepath-1", [("base", "< 3")])]
+            ]
+      , input =
+          [ ("base", "*")
+          , ("bytestring", "*")
+          , ("containers", "*")
+          , ("directory", "*")
+          , ("filepath", "*")
+          ]
+      , expected =
+          [ "base-2"
+          , "bytestring-10000"
+          , "containers-10000"
+          , "directory-10000"
+          , "filepath-1"
+          ]
+      }
+  ]
