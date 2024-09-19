@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -9,9 +10,11 @@ module Skelly.Core.Solver (
 ) where
 
 import Control.Applicative (asum)
+import Control.Monad ((<=<))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Control.Monad.Trans.Maybe qualified as MaybeT
+import Data.Graph qualified as Graph
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Map.Strict qualified as Strict (Map)
@@ -50,12 +53,15 @@ initService pkgIndexService =
     , getPackageVersions = \cursor -> fmap PackageIndex.availableVersions . PackageIndex.getPackageVersionInfo cursor
     }
 
--- | Get the list of transitive dependencies in topological order.
+-- | Get the list of transitive dependencies in topological order, where
+-- packages may not depend on any packages later in the list.
 run :: Service -> PackageDeps -> IO [PackageId]
 run Service{..} deps0 =
   withCursor $ \cursor ->
-    runMaybeT (compileDeps deps0 >>= \deps0' -> go cursor deps0' (Map.keys deps0))
-      >>= maybe (throwIO DependencyResolutionFailure) pure
+    maybe (throwIO DependencyResolutionFailure) pure <=< runMaybeT $ do
+      deps0' <- compileDeps deps0
+      allDeps <- go cursor deps0' (Map.keys deps0)
+      liftIO $ sortTopological (getPackageDeps cursor) allDeps
   where
     compileDeps = fmap (Map.Strict.fromAscList . Map.toAscList) . traverse (MaybeT.hoistMaybe . compileRange)
 
@@ -96,3 +102,13 @@ run Service{..} deps0 =
                 | pkgVer <- versions
                 , let pkgId = PackageId pkgName pkgVer
                 ]
+
+sortTopological :: (PackageId -> IO PackageDeps) -> [PackageId] -> IO [PackageId]
+sortTopological getPackageDeps pkgs = do
+  (graph, nodeFromVertex, _) <- Graph.graphFromEdges <$> mapM toNode pkgs
+  pure . map (fromNode . nodeFromVertex) $ Graph.reverseTopSort graph
+  where
+    fromNode (node, _, _) = node
+    toNode pkgId@PackageId{packageName} = do
+      deps <- getPackageDeps pkgId
+      pure (pkgId, packageName, Map.keys deps)
