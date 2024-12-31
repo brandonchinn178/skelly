@@ -99,7 +99,7 @@ class HsPackage(NamedTuple):
     def is_allowed_ghc_version(self, version: str) -> bool:
         version_info = tuple(int(x) for x in version.split("."))
         # TODO: parse bounds from self.config["skelly"]["toolchain"]["ghc"]
-        return version_info >= (9, 6) and version_info < (9, 8)
+        return version_info >= (9, 10) and version_info < (9, 12)
 
     def find_appropriate_ghc_version(self) -> str:
         ghcup_list = subprocess.run(

@@ -3,7 +3,7 @@ name = "skelly"
 version = "0.0.0"
 
 [skelly.toolchain]
-ghc = ">= 9.6 && < 9.8"
+ghc = ">= 9.10 && < 9.12"
 
 [skelly.dependencies]
 aeson = "< 3"
