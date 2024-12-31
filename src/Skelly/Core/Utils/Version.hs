@@ -62,7 +62,8 @@ data VersionRange
 data VersionOp
   = VERSION_LT -- ^ @< 1.2.3@, matches any version prior to the given version
   | VERSION_LTE -- ^ @<= 1.2.3@, matches any version prior to or equal to the given version
-  | VERSION_EQ -- ^ @1.2.3@, matches only the specific version specified
+  | VERSION_NEQ -- ^ @!= 1.2.3@, matches any version exception the version specified
+  | VERSION_EQ -- ^ @1.2.3@, matches only the exact version specified
   | VERSION_GT -- ^ @> 1.2.3@, matches any version after the given version
   | VERSION_GTE -- ^ @>= 1.2.3@, matches any version after or equal to the given version
   | VERSION_PVP_MAJOR -- ^ @^1.2.3@, matches any version in with the same major version, according to PVP
@@ -86,6 +87,7 @@ parseVersionRange = runReadP (parseAny +++ parseRange)
         ReadP.choice
           [ VERSION_LT <$ token "<"
           , VERSION_LTE <$ token "<="
+          , VERSION_NEQ <$ token "!="
           , pure VERSION_EQ
           , VERSION_GT <$ token ">"
           , VERSION_GTE <$ token ">="
@@ -106,6 +108,7 @@ renderVersionRange = \case
     renderVersionOp = \case
       VERSION_LT -> "< "
       VERSION_LTE -> "<= "
+      VERSION_NEQ -> "!= "
       VERSION_EQ -> ""
       VERSION_GT -> "> "
       VERSION_GTE -> ">= "
@@ -127,6 +130,10 @@ compileRange = go
       AnyVersion -> range Interval.whole
       VersionWithOp VERSION_LT v -> range $ Interval.NegInf Interval.<..< Interval.Finite v
       VersionWithOp VERSION_LTE v -> range $ Interval.NegInf Interval.<..<= Interval.Finite v
+      VersionWithOp VERSION_NEQ v ->
+        CompiledVersionRangeOr
+          <$> go (VersionWithOp VERSION_LT v)
+          <*> go (VersionWithOp VERSION_GT v)
       VersionWithOp VERSION_EQ v -> range $ Interval.singleton v
       VersionWithOp VERSION_GT v -> range $ Interval.Finite v Interval.<..< Interval.PosInf
       VersionWithOp VERSION_GTE v -> range $ Interval.Finite v Interval.<=..< Interval.PosInf

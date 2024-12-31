@@ -24,6 +24,9 @@ spec = do
         , ("1.2.0", "1.2.3", False)
         , ("1.2.3", "1.2.3", True)
         , ("1.2.5", "1.2.3", False)
+        , ("1.2.0", "!= 1.2.3", True)
+        , ("1.2.3", "!= 1.2.3", False)
+        , ("1.2.5", "!= 1.2.3", True)
         , ("1.2.0", "> 1.2.3", False)
         , ("1.2.3", "> 1.2.3", False)
         , ("1.2.5", "> 1.2.3", True)
@@ -67,6 +70,22 @@ spec = do
 
       it "returns Nothing when intersecting disjunction with range excluding both" $
         intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 1.0") `shouldBe` Nothing
+
+      it "correctly intersects NEQ with range" $ do
+        Just r <- pure $ intersectRange (toRangeC "!= 1.2") (toRangeC "< 1.4")
+        inRange r (toVer "1.1") `shouldBe` True
+        inRange r (toVer "1.2") `shouldBe` False
+        inRange r (toVer "1.3") `shouldBe` True
+
+      it "returns Nothing when intersecting NEQ with EQ" $ do
+        intersectRange (toRangeC "!= 1.2") (toRangeC "1.2") `shouldBe` Nothing
+
+      it "correctly intersects two NEQ" $ do
+        Just r <- pure $ intersectRange (toRangeC "!= 1.2") (toRangeC "!= 1.3")
+        inRange r (toVer "1.1") `shouldBe` True
+        inRange r (toVer "1.2") `shouldBe` False
+        inRange r (toVer "1.3") `shouldBe` False
+        inRange r (toVer "1.4") `shouldBe` True
 
 toVer :: Text -> Version
 toVer s =
