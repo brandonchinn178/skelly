@@ -1,17 +1,21 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
+import Data.List (elemIndex)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Skelly.Core.Error (SkellyError (DependencyResolutionFailure))
-import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
+import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.Utils.PackageId (PackageId (..), PackageName, renderPackageId)
 import Skelly.Core.Utils.Version (makeVersion, parseVersion, parseVersionRange)
 
 spec :: Spec
@@ -59,8 +63,13 @@ spec = do
 
   prop "returns topologically sorted deps" $ do
     -- A -> B -> C -> ...
-    names <- forAll $ Gen.shuffle . Set.toList =<< Gen.set (Range.linear 1 20) genName
-    let index =
+    namesAndRanks <- forAll $ do
+      names <- Set.toList <$> Gen.set (Range.linear 1 20) genName
+      ranks <- mapM (\_ -> genRank) names
+      Gen.shuffle $ zip names ranks
+    let names = map fst namesAndRanks
+        rankPackage = toRankPackage namesAndRanks
+        index =
           zipWith
             ( \name mDep ->
                 ( PackageId name (makeVersion [1, 0])
@@ -68,10 +77,10 @@ spec = do
                 )
             )
             names
-            (map Just (tail names) ++ [Nothing])
+            (map Just (drop 1 names) ++ [Nothing])
         input = [(name, "*") | name <- names]
         expected = reverse names
-    liftIO (run (mkService' index) (toPackageDeps input))
+    liftIO (run (mkService' index rankPackage) (toPackageDeps input))
       `shouldSatisfy` P.returns (map packageName P.>>> P.eq expected)
 
   it "throws when resolution fails" $ do
@@ -85,8 +94,14 @@ spec = do
       it label $ do
         runSolver (mkService index) input `shouldSatisfy` P.returns (P.eq expected)
 
-genName :: Gen Text
+genName :: Gen PackageName
 genName = Gen.text (Range.linear 1 20) $ Gen.frequency [(10, Gen.alphaNum), (1, pure '-')]
+
+genRank :: Gen Int
+genRank = Gen.int (Range.linear 0 1000)
+
+toRankPackage :: [(PackageName, Int)] -> (PackageName -> Int)
+toRankPackage namesAndRanks = \name -> fromMaybe (-1) $ lookup name namesAndRanks
 
 {----- Helpers -----}
 
@@ -114,14 +129,22 @@ toPackageId s =
 type PackageDepsList = [(Text, Text)]
 
 mkService :: [(Text, PackageDepsList)] -> Service
-mkService = mkService' . map (first toPackageId)
+mkService index = mkService' index' rankPackageAlpha
+  where
+    index' = map (first toPackageId) index
 
-mkService' :: [(PackageId, PackageDepsList)] -> Service
-mkService' index =
+    -- in tests, iterate over packages in alphabetical order
+    rankPackageAlpha name = fromMaybe (-1) $ name `elemIndex` sortedPackages
+    sortedPackages = reverse [packageName | (PackageId{..}, _) <- index']
+
+mkService' :: [(PackageId, PackageDepsList)] -> (PackageName -> Int) -> Service
+mkService' index rankPackage =
   Service
-    { withCursor = \f -> f undefined
+    { loggingService = Logging.disabledService
+    , withCursor = \f -> f undefined
     , getPackageDeps = \_ PackageId{..} -> pure $ indexMap Map.! packageName Map.! packageVersion
     , getPackageVersions = \_ name -> pure . Map.keys $ indexMap Map.! name
+    , rankPackage
     }
   where
     indexMap =

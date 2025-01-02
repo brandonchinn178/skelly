@@ -67,6 +67,7 @@ data PackageInfo = PackageInfo
   , packageDefaultExtensions :: [Text]
   }
 
+-- FIXME: turn on exceptions:transformers-0-4 flag
 parseCabalFile :: PackageId -> ByteString -> Either SkellyError PackageInfo
 parseCabalFile packageId input = do
   -- ignore warnings for now

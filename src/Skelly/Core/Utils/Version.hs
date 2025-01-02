@@ -20,6 +20,7 @@ module Skelly.Core.Utils.Version (
   singletonRange,
   intersectRange,
   isSingletonRange,
+  getSingletonRange,
   inRange,
   chooseBestVersion,
   getVersionPreferences,
@@ -30,7 +31,7 @@ import Control.Monad (guard)
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
 import Data.List qualified as List
-import Data.Maybe (listToMaybe, mapMaybe)
+import Data.Maybe (isJust, listToMaybe, mapMaybe)
 import Data.Ord (Down (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -170,9 +171,13 @@ singletonRange = CompiledVersionRange . Interval.singleton
 
 -- | Return True if the given range contains a single version.
 isSingletonRange :: CompiledVersionRange -> Bool
-isSingletonRange = \case
-  CompiledVersionRange i -> Interval.isSingleton i
-  CompiledVersionRangeOr _ _ -> False
+isSingletonRange = isJust . getSingletonRange
+
+-- | Return the version if the given range contains a single version.
+getSingletonRange :: CompiledVersionRange -> Maybe Version
+getSingletonRange = \case
+  CompiledVersionRange i -> Interval.extractSingleton i
+  CompiledVersionRangeOr _ _ -> Nothing
 
 inRange :: CompiledVersionRange -> Version -> Bool
 inRange = \case

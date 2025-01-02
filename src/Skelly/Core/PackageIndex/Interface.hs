@@ -8,7 +8,6 @@ module Skelly.Core.PackageIndex.Interface (
   PackageIndex (..),
   PackageIndexCursor (..),
   PackageInfo (..),
-  PackageName,
   PackageVersionInfo (..),
 
   -- * Methods
@@ -20,10 +19,9 @@ module Skelly.Core.PackageIndex.Interface (
   getLatestVersion,
 ) where
 
-import Data.Text (Text)
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Utils.Cabal (PackageInfo (..))
-import Skelly.Core.Utils.PackageId (PackageId)
+import Skelly.Core.Utils.PackageId (PackageId, PackageName)
 import Skelly.Core.Utils.Version (Version, VersionRange, chooseBestVersion)
 import UnliftIO.Exception (throwIO)
 
@@ -54,8 +52,6 @@ data PackageIndexCursor = PackageIndexCursor
   { lookupPackageVersionInfo :: PackageName -> IO (Maybe PackageVersionInfo)
   , lookupPackageInfo :: PackageId -> IO (Maybe PackageInfo)
   }
-
-type PackageName = Text
 
 data PackageVersionInfo = PackageVersionInfo
   { availableVersions :: [Version]
