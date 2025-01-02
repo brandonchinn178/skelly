@@ -22,6 +22,9 @@ module Skelly.Core.Logging (
 
   -- * Low level API
   LogLevel (..),
+
+  -- * Test helpers
+  disabledService,
 ) where
 
 import Data.Text (Text)
@@ -44,6 +47,16 @@ initService opts =
         if level >= logLevel opts
           then Text.putStrLn $ "[" <> displayLevel level <> "] " <> msg
           else pure ()
+    }
+
+disabledService :: Service
+disabledService =
+  Service
+    { options =
+        Options
+          { logLevel = LevelDebug
+          }
+    , doLog = \_ _ -> pure ()
     }
 
 data LogLevel

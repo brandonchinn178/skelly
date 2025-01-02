@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Skelly.Core.Utils.PackageId (
   PackageId,
+  PackageName,
   renderPackageId,
  )
 import Skelly.Core.Utils.Version (
@@ -25,11 +26,12 @@ import Skelly.Core.Utils.Version (
 data SkellyError
   = NoPackageConfig [FilePath]
   | SomeHackageError SomeHackageError
-  | UnknownPackage Text
+  | UnknownPackage PackageName
   | PackageIdNotFound PackageId
-  | NoValidVersions Text [Version] VersionRange
+  | NoValidVersions PackageName [Version] VersionRange
   | BadCabalFile PackageId Text
   | DependencyResolutionFailure -- ^ TODO: add conflict info
+  | UnsatisfiableVersionRange PackageName VersionRange
   deriving (Show, Eq)
 
 instance Exception SkellyError where
@@ -66,3 +68,5 @@ renderSkellyError = \case
       , msg
       ]
   DependencyResolutionFailure -> "Failed to resolve dependencies"
+  UnsatisfiableVersionRange package range ->
+    "Unsatisfiable version range for package " <> package <> ": " <> renderVersionRange range

@@ -33,7 +33,11 @@ import Skelly.Core.PackageIndex.Interface
 import Skelly.Core.Paths (skellyCacheDir)
 import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.Hackage qualified as Hackage
-import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
+import Skelly.Core.Utils.PackageId (
+  PackageId (..),
+  PackageName,
+  renderPackageId,
+ )
 import Skelly.Core.Utils.Version (
   Version,
   VersionRange (..),
