@@ -17,6 +17,7 @@ module Skelly.Core.Utils.Version (
   -- * Range resolution
   CompiledVersionRange,
   compileRange,
+  renderCompiledRange,
   singletonRange,
   intersectRange,
   isSingletonRange,
@@ -26,12 +27,12 @@ module Skelly.Core.Utils.Version (
   getVersionPreferences,
 ) where
 
-import Control.Applicative ((<|>))
-import Control.Monad (guard)
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
 import Data.List qualified as List
-import Data.Maybe (isJust, listToMaybe, mapMaybe)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Maybe (catMaybes, isJust, listToMaybe, mapMaybe)
 import Data.Ord (Down (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -118,21 +119,27 @@ renderVersionRange = \case
 {----- Compilation -----}
 
 -- | A VersionRange compiled for fast queries.
-data CompiledVersionRange
-  = CompiledVersionRange (Interval Version) -- ^ Invariant: Interval is never empty
-  | CompiledVersionRangeOr CompiledVersionRange CompiledVersionRange
+newtype CompiledVersionRange =
+  CompiledVersionRange
+    { unCompiledVersionRange :: NonEmpty (Interval Version)
+      -- ^ Range consists of the disjunction of multiple intervals
+      --
+      -- Invariant: Interval is never empty
+    }
   deriving (Show, Eq)
 
 compileRange :: VersionRange -> Maybe CompiledVersionRange
-compileRange = go
+compileRange = fmap simplifyRange . go
   where
-    range = pure . CompiledVersionRange
+    merge (CompiledVersionRange l) (CompiledVersionRange r) = CompiledVersionRange (l <> r)
+    range = pure . CompiledVersionRange . NonEmpty.singleton
+
     go = \case
       AnyVersion -> range Interval.whole
       VersionWithOp VERSION_LT v -> range $ Interval.NegInf Interval.<..< Interval.Finite v
       VersionWithOp VERSION_LTE v -> range $ Interval.NegInf Interval.<..<= Interval.Finite v
       VersionWithOp VERSION_NEQ v ->
-        CompiledVersionRangeOr
+        merge
           <$> go (VersionWithOp VERSION_LT v)
           <*> go (VersionWithOp VERSION_GT v)
       VersionWithOp VERSION_EQ v -> range $ Interval.singleton v
@@ -143,7 +150,7 @@ compileRange = go
         l' <- go l
         r' <- go r
         intersectRange l' r'
-      VersionRangeOr l r -> CompiledVersionRangeOr <$> go l <*> go r
+      VersionRangeOr l r -> merge <$> go l <*> go r
 
     nextPvpVersion v =
       case take 2 (Version.versionBranch v) <> repeat 0 of
@@ -152,22 +159,59 @@ compileRange = go
 
 -- | Return the intersection of the two ranges, or Nothing if the ranges are incompatible.
 intersectRange :: CompiledVersionRange -> CompiledVersionRange -> Maybe CompiledVersionRange
-intersectRange = curry $ \case
-  (CompiledVersionRange i1, CompiledVersionRange i2) -> do
-    let i = i1 `Interval.intersection` i2
-    guard $ (not . Interval.null) i
-    pure $ CompiledVersionRange i
-  (r, CompiledVersionRangeOr r1 r2) -> distribute r (r1, r2)
-  (CompiledVersionRangeOr r1 r2, r) -> distribute r (r1, r2)
+intersectRange (CompiledVersionRange l) (CompiledVersionRange r) =
+  fmap CompiledVersionRange . NonEmpty.nonEmpty $
+    filter (not . Interval.null) $
+      [ i1 `Interval.intersection` i2
+      | i1 <- NonEmpty.toList l
+      , i2 <- NonEmpty.toList r
+      ]
+
+simplifyRange :: CompiledVersionRange -> CompiledVersionRange
+simplifyRange = CompiledVersionRange . foldNE simplify . sort . unCompiledVersionRange
   where
-    distribute r (r1, r2) =
-      case (intersectRange r r1, intersectRange r r2) of
-        (Just o1, Just o2) -> pure $ CompiledVersionRangeOr o1 o2
-        (o1, o2) -> o1 <|> o2
+    sort = NonEmpty.sortOn Interval.lowerBound
+    simplify i1 = \case
+      i2 : rest | Interval.isConnected i1 i2 -> (Interval.hull i1 i2, rest)
+      rest -> (i1, rest)
+
+    foldNE :: (a -> [b] -> (b, [b])) -> NonEmpty a -> NonEmpty b
+    foldNE f =
+      let go (a NonEmpty.:| as) = f a $ maybe [] (uncurry (:) . go) (NonEmpty.nonEmpty as)
+       in uncurry (NonEmpty.:|) . go
+
+renderCompiledRange :: CompiledVersionRange -> Text
+renderCompiledRange = renderBoolOps . map renderBounds . NonEmpty.toList . unCompiledVersionRange
+  where
+    renderBounds i
+      | Just v <- Interval.extractSingleton i = ["= " <> renderVersion v]
+      | otherwise =
+          let fromLo = \case
+                (Interval.Finite v, Interval.Open) -> Just $ "> " <> renderVersion v
+                (Interval.Finite v, Interval.Closed) -> Just $ "≥ " <> renderVersion v
+                _ -> Nothing
+              fromHi = \case
+                (Interval.Finite v, Interval.Open) -> Just $ "< " <> renderVersion v
+                (Interval.Finite v, Interval.Closed) -> Just $ "≤ " <> renderVersion v
+                _ -> Nothing
+           in catMaybes
+                [ fromLo $ Interval.lowerBound' i
+                , fromHi $ Interval.upperBound' i
+                ]
+
+    -- render ranges as "> 1 && < 2" if there's just one range, otherwise
+    -- wrap in parens: "(> 1 && < 2) || (> 3 && < 4)"
+    renderBoolOps parts =
+      Text.intercalate " || " $
+        [ (if needsParens then \s -> "(" <> s <> ")" else id) $
+            Text.intercalate " && " bounds
+        | bounds <- parts
+        , let needsParens = length parts > 1 && length bounds > 1
+        ]
 
 -- | A helper for constructing a range matching just the given Version.
 singletonRange :: Version -> CompiledVersionRange
-singletonRange = CompiledVersionRange . Interval.singleton
+singletonRange = CompiledVersionRange . NonEmpty.singleton . Interval.singleton
 
 -- | Return True if the given range contains a single version.
 isSingletonRange :: CompiledVersionRange -> Bool
@@ -176,13 +220,11 @@ isSingletonRange = isJust . getSingletonRange
 -- | Return the version if the given range contains a single version.
 getSingletonRange :: CompiledVersionRange -> Maybe Version
 getSingletonRange = \case
-  CompiledVersionRange i -> Interval.extractSingleton i
-  CompiledVersionRangeOr _ _ -> Nothing
+  CompiledVersionRange (i NonEmpty.:| []) -> Interval.extractSingleton i
+  _ -> Nothing
 
 inRange :: CompiledVersionRange -> Version -> Bool
-inRange = \case
-  CompiledVersionRange i -> (`Interval.member` i)
-  CompiledVersionRangeOr i1 i2 -> \v -> inRange i1 v || inRange i2 v
+inRange (CompiledVersionRange is) v = any (v `Interval.member`) is
 
 chooseBestVersion :: VersionRange -> [Version] -> Maybe Version
 chooseBestVersion range' vs = do

@@ -87,6 +87,18 @@ spec = do
         inRange r (toVer "1.3") `shouldBe` False
         inRange r (toVer "1.4") `shouldBe` True
 
+    describe "renderCompiledRange" $ do
+      it "renders equality" $ do
+        renderCompiledRange (toRangeC "1.0") `shouldBe` "= 1.0"
+
+      it "renders a disjointed range" $ do
+        renderCompiledRange (toRangeC "^1.2 || ^1.4") `shouldBe` "(≥ 1.2 && < 1.3) || (≥ 1.4 && < 1.5)"
+
+      it "renders a simplified range" $ do
+        renderCompiledRange (toRangeC "^1.2 || ^1.3") `shouldBe` "≥ 1.2 && < 1.4"
+        renderCompiledRange (toRangeC "^1.3 || ^1.2") `shouldBe` "≥ 1.2 && < 1.4"
+        renderCompiledRange (toRangeC "^1.3 || < 1 || ^1.2") `shouldBe` "< 1 || (≥ 1.2 && < 1.4)"
+
 toVer :: Text -> Version
 toVer s =
   case parseVersion s of

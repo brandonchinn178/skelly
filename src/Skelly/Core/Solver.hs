@@ -65,6 +65,7 @@ import Skelly.Core.Utils.Version (
   compileRange,
   intersectRange,
   isSingletonRange,
+  renderCompiledRange,
   singletonRange,
  )
 import UnliftIO.MVar (MVar, newMVar, modifyMVar)
@@ -172,9 +173,13 @@ runSolver Service{..} packageCache deps0 = resolve (toStrictMap deps0) (insertAl
             case intersectRange r1 r2 of
               Just r -> pure r
               Nothing -> do
-                liftIO . logDebug loggingService $
-                  -- TODO: show prettier ranges
-                  "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName <> " " <> Text.pack (show (r1, r2))
+                let oldRange = renderCompiledRange r1
+                    newRange = renderCompiledRange r2
+                liftIO . logDebug loggingService . Text.intercalate "\n" $
+                  [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
+                  , "\tCurrent: " <> oldRange
+                  , "\tNew:     " <> newRange
+                  ]
                 refute $ Set.singleton depName
        in Map.Strict.mergeA
             Map.Strict.preserveMissing
