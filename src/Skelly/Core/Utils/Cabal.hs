@@ -30,11 +30,14 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Version qualified as Version
 import Distribution.Client.IndexUtils qualified as Cabal
+import Distribution.Compiler qualified as Cabal
 import Distribution.PackageDescription qualified as Cabal
 import Distribution.PackageDescription.Configuration qualified as Cabal
 import Distribution.PackageDescription.Parsec qualified as Cabal
 import Distribution.Parsec.Error qualified as Cabal
 import Distribution.Pretty qualified as Cabal
+import Distribution.System qualified as Cabal
+import Distribution.Types.ComponentRequestedSpec qualified as Cabal
 import Distribution.Types.Version qualified as Cabal
 import Distribution.Types.VersionRange qualified as Cabal
 import Distribution.Utils.Path qualified as Cabal
@@ -67,7 +70,6 @@ data PackageInfo = PackageInfo
   , packageDefaultExtensions :: [Text]
   }
 
--- FIXME: turn on exceptions:transformers-0-4 flag
 parseCabalFile :: PackageId -> ByteString -> Either SkellyError PackageInfo
 parseCabalFile packageId input = do
   -- ignore warnings for now
@@ -75,8 +77,12 @@ parseCabalFile packageId input = do
 
   pkg <-
     case result of
-      -- TODO: use finalizePD to resolve conditions correctly
-      Right pd -> pure $ Cabal.flattenPackageDescription pd
+      Right pd ->
+        case resolveConditions pd of
+          Right (pkg, _) -> pure pkg
+          Left _ ->
+            -- TODO
+            error $ "Could not resolve conditions: " ++ show pd
       Left (_cabalVersion, errors) ->
         Left . BadCabalFile packageId $
           Text.unlines . map renderPError . NonEmpty.toList $ errors
@@ -98,6 +104,31 @@ parseCabalFile packageId input = do
       }
   where
     renderPError = Text.pack . Cabal.showPError (Text.unpack $ renderPackageId packageId)
+
+    resolveConditions =
+      Cabal.finalizePD
+        mempty
+        Cabal.ComponentRequestedSpec
+          { testsRequested = False
+          , benchmarksRequested = False
+          }
+        (const True)
+        platform
+        compilerInfo
+        []
+
+    -- TODO: read "Target platform" from `ghc --info`
+    platform = Cabal.buildPlatform
+
+    -- TODO: get actual GHC version
+    compilerInfo =
+      Cabal.CompilerInfo
+        { compilerInfoId = Cabal.CompilerId Cabal.GHC (Cabal.mkVersion [9, 10, 0])
+        , compilerInfoAbiTag = Cabal.NoAbiTag
+        , compilerInfoCompat = Nothing
+        , compilerInfoLanguages = Nothing
+        , compilerInfoExtensions = Nothing
+        }
 
 fromCabalVersion :: Cabal.Version -> Version
 fromCabalVersion = makeVersion . Cabal.versionNumbers
