@@ -21,6 +21,7 @@ module Skelly.Core.Solver (
   run,
 
   -- * Helpers
+  getPreferredVersions,
   rankPackageDefault,
 ) where
 
@@ -40,9 +41,12 @@ import Data.Map.Strict qualified as Strict (Map)
 import Data.Map.Strict qualified as Map.Strict
 import Data.Map.Merge.Strict qualified as Map.Strict
 import Data.Maybe (fromMaybe)
+import Data.Ord (Down (..))
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Skelly.Core.CompilerEnv (CompilerEnv)
+import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (
   SkellyError (
     DependencyResolutionFailure,
@@ -61,8 +65,8 @@ import Skelly.Core.Utils.Version (
   CompiledVersionRange,
   Version,
   VersionRange,
-  getVersionPreferences,
   compileRange,
+  inRange,
   intersectRange,
   isSingletonRange,
   renderCompiledRange,
@@ -94,12 +98,12 @@ initService loggingService pkgIndexService =
 
 -- | Get the list of transitive dependencies in topological order, where
 -- packages may not depend on any packages later in the list.
-run :: Service -> PackageDeps -> IO [PackageId]
-run service@Service{..} initialDeps =
+run :: Service -> CompilerEnv -> PackageDeps -> IO [PackageId]
+run service@Service{..} env initialDeps =
   withCursor $ \cursor -> do
     packageCache <- initPackageCache (getPackageVersions cursor) (getPackageDeps cursor)
     initialDeps' <- compileDeps initialDeps
-    runValidateT (runSolver service packageCache initialDeps') >>= \case
+    runValidateT (runSolver service env packageCache initialDeps') >>= \case
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
   where
@@ -113,10 +117,11 @@ type PackageQueue = HashPSQ PackageName Int ()
 
 runSolver ::
   Service
+  -> CompilerEnv
   -> PackageCache
   -> Map PackageName CompiledVersionRange
   -> ValidateT IO ConflictSet [PackageId]
-runSolver Service{..} packageCache deps0 = resolve (toStrictMap deps0) (insertAll deps0 HashPSQ.empty)
+runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (insertAll deps0 HashPSQ.empty)
   where
     toStrictMap = Map.Strict.fromAscList . Map.toAscList
     insertAll deps queue =
@@ -134,7 +139,8 @@ runSolver Service{..} packageCache deps0 = resolve (toStrictMap deps0) (insertAl
         Nothing -> pure []
         Just (pkgName, _, _, queue') ->
           case Map.Strict.lookup pkgName deps of
-            -- rts package doesn't actually exist
+            -- TODO: get `rts` version from ghc-pkg, should be treated the same as
+            -- other packages not on Hackage (e.g. import package from GitHub)
             _ | pkgName == "rts" -> resolve deps queue'
             -- package is in the queue without registering a range; this is a bug
             Nothing -> error $ "Unexpectedly failed to find package " <> show pkgName <> ":\n" <> show deps
@@ -145,7 +151,9 @@ runSolver Service{..} packageCache deps0 = resolve (toStrictMap deps0) (insertAl
               | otherwise -> resolvePackage deps queue' pkgName range
 
     resolvePackage deps queue pkgName range = do
-      versions <- getVersionPreferences range <$> getPackageVersionsCached packageCache pkgName
+      allVersions <- getPackageVersionsCached packageCache pkgName
+      let versions = getPreferredVersions env pkgName range allVersions
+
       withBacktracking pkgName . flip map versions $ \pkgVer -> do
         let pkgId = PackageId pkgName pkgVer
         liftIO . logDebug loggingService $ "Trying package: " <> renderPackageId pkgId
@@ -210,6 +218,22 @@ sortTopological packageCache pkgs = do
     toNode pkgId@PackageId{packageName} = do
       deps <- getPackageDepsCached packageCache pkgId
       pure (pkgId, packageName, Map.keys deps)
+
+getPreferredVersions ::
+  CompilerEnv
+  -> PackageName
+  -> CompiledVersionRange
+  -> [Version]
+  -> [Version]
+getPreferredVersions env pkgName range = orderVersions . filter (inRange range)
+  where
+    -- Order versions from latest to oldest, unless it's a pre-installed
+    -- package like `base`, where that version should be first.
+    orderVersions = List.sortOn $ \version ->
+      ( Down . maybe False (== version) $
+          Map.lookup pkgName (CompilerEnv.ghcPkgList env)
+      , Down version
+      )
 
 -- | Rank the given package, where a higher rank means the package gets solved
 -- earlier.

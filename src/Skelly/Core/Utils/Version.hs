@@ -23,17 +23,13 @@ module Skelly.Core.Utils.Version (
   isSingletonRange,
   getSingletonRange,
   inRange,
-  chooseBestVersion,
-  getVersionPreferences,
 ) where
 
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
-import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (catMaybes, isJust, listToMaybe, mapMaybe)
-import Data.Ord (Down (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Version (Version, makeVersion)
@@ -232,12 +228,3 @@ getSingletonRange = \case
 
 inRange :: CompiledVersionRange -> Version -> Bool
 inRange (CompiledVersionRange is) v = any (v `Interval.member`) is
-
-chooseBestVersion :: VersionRange -> [Version] -> Maybe Version
-chooseBestVersion range' vs = do
-  range <- compileRange range'
-  listToMaybe $ getVersionPreferences range vs
-
--- | Return a list of Versions that match the given range, from most recent to least.
-getVersionPreferences :: CompiledVersionRange -> [Version] -> [Version]
-getVersionPreferences range = filter (inRange range) . List.sortOn Down

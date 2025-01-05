@@ -5,23 +5,29 @@
 
 module Skelly.CLI.CommandAdd (commandAdd) where
 
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Options.Applicative
 import Skelly.CLI.Command
 import Skelly.CLI.Service qualified as CLI
+import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
+import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
+import Skelly.Core.Utils.PackageId (PackageName)
 import Skelly.Core.Utils.Version (
   Version,
   VersionOp (..),
   VersionRange (..),
+  compileRange,
+  makeVersion,
   parseVersionRange,
   renderVersionRange,
  )
+import UnliftIO.Exception (throwIO)
 
 commandAdd :: Command
 commandAdd =
@@ -58,7 +64,13 @@ execute CLI.Service{..} = run service
         { loggingService
         , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
         , savePackageConfig = PackageConfig.savePackageConfig
-        , getLatestVersion = \pkg -> PackageIndex.withCursor packageIndexService $ \cursor -> PackageIndex.getLatestVersion cursor pkg
+        , getPreferredVersion = \env pkgName ->
+            PackageIndex.withCursor packageIndexService $ \cursor -> do
+              PackageIndex.PackageVersionInfo{..} <- PackageIndex.getPackageVersionInfo cursor pkgName
+              let getPreferred range = Solver.getPreferredVersions env pkgName range availableVersions
+              case compileRange preferredVersionRange of
+                Just range | v : _ <- getPreferred range -> pure v
+                _ -> throwIO $ NoValidVersions pkgName availableVersions preferredVersionRange
         }
 
 {----- Execution -----}
@@ -67,33 +79,35 @@ data Service = Service
   { loggingService :: Logging.Service
   , loadPackageConfig :: IO PackageConfig
   , savePackageConfig :: PackageConfig -> IO ()
-  , getLatestVersion :: Text -> IO Version
+  , getPreferredVersion :: CompilerEnv -> PackageName -> IO Version
   }
 
 -- TODO: specify which lib/bin/test to add dep to
 data Options = Options
-  { dependencies :: [(Text, Maybe VersionRange)]
+  { dependencies :: [(PackageName, Maybe VersionRange)]
   }
   deriving (Show)
 
 run :: Service -> Options -> IO ()
 run Service{..} Options{..} = do
   cfg <- loadPackageConfig
-  foldlM go cfg dependencies >>= savePackageConfig
+  let ghcVersion = makeVersion [9, 10, 1] -- TODO: get from hspackage.toml
+  env <- loadCompilerEnv ghcVersion
+  foldlM (go env) cfg dependencies >>= savePackageConfig
   where
-    go cfg (dep, mRange) = do
-      range <- resolveRange dep mRange
+    go env cfg (dep, mRange) = do
+      range <- resolveRange env dep mRange
       logDebug loggingService $
         "Adding dependency: " <> dep <> " => " <> renderVersionRange range
       pure $ PackageConfig.addDependency dep range cfg
 
     -- If a range isn't specified, default to "^X.Y.Z", where "X.Y.Z" is the
     -- most recent version on Hackage currently.
-    resolveRange dep = \case
+    resolveRange env dep = \case
       Just range -> pure range
       -- TODO: ensure version is compatible with other bounds
       -- TODO: if package already in deps, update the version
-      Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getLatestVersion dep
+      Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getPreferredVersion env dep
 
     foldlM f z = \case
       [] -> pure z

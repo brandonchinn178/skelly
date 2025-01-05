@@ -13,10 +13,17 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Skelly.Core.CompilerEnv (CompilerEnv)
+import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (SkellyError (DependencyResolutionFailure))
 import Skelly.Core.Logging qualified as Logging
-import Skelly.Core.Utils.PackageId (PackageId (..), PackageName, renderPackageId)
-import Skelly.Core.Utils.Version (makeVersion, parseVersion, parseVersionRange)
+import Skelly.Core.Utils.PackageId (
+  PackageId (..),
+  PackageName,
+  parsePackageId,
+  renderPackageId,
+ )
+import Skelly.Core.Utils.Version (makeVersion, parseVersionRange)
 
 spec :: Spec
 spec = do
@@ -80,7 +87,7 @@ spec = do
             (map Just (drop 1 names) ++ [Nothing])
         input = [(name, "*") | name <- names]
         expected = reverse names
-    liftIO (run (mkService' index rankPackage) (toPackageDeps input))
+    liftIO (run (mkService' index rankPackage) defaultEnv (toPackageDeps input))
       `shouldSatisfy` P.returns (map packageName P.>>> P.eq expected)
 
   it "throws when resolution fails" $ do
@@ -92,7 +99,8 @@ spec = do
   describe "regression tests" $ do
     forM_ regressionTests $ \RegressionTest{..} ->
       it label $ do
-        runSolver (mkService index) input `shouldSatisfy` P.returns (P.eq expected)
+        packages <- run (mkService index) env (toPackageDeps input)
+        map renderPackageId packages `shouldBe` expected
 
 genName :: Gen PackageName
 genName = Gen.text (Range.linear 1 20) $ Gen.frequency [(10, Gen.alphaNum), (1, pure '-')]
@@ -106,7 +114,16 @@ toRankPackage namesAndRanks = \name -> fromMaybe (-1) $ lookup name namesAndRank
 {----- Helpers -----}
 
 runSolver :: Service -> PackageDepsList -> IO [Text]
-runSolver service input = map renderPackageId <$> run service (toPackageDeps input)
+runSolver service input = map renderPackageId <$> run service defaultEnv (toPackageDeps input)
+
+defaultEnv :: CompilerEnv
+defaultEnv =
+  CompilerEnv.CompilerEnv
+    { ghcPath = "/usr/local/bin/ghc"
+    , ghcVersion = makeVersion [9, 10, 1]
+    , ghcPkgPath = "/usr/local/bin/ghc-pkg"
+    , ghcPkgList = Map.empty
+    }
 
 toPackageDeps :: PackageDepsList -> PackageDeps
 toPackageDeps deps =
@@ -118,12 +135,9 @@ toPackageDeps deps =
 
 toPackageId :: Text -> PackageId
 toPackageId s =
-  case Text.breakOnEnd "-" s of
-    (pre, versionStr)
-      | let name = Text.dropEnd 1 pre
-      , Just version <- parseVersion versionStr ->
-          PackageId name version
-    _ -> error $ "Invalid package id: " <> Text.unpack s
+  case parsePackageId s of
+    Just p -> p
+    Nothing -> error $ "Invalid package id: " <> Text.unpack s
 
 -- | Dependencies and their version ranges, as a list.
 type PackageDepsList = [(Text, Text)]
@@ -161,6 +175,7 @@ showVer = Text.pack . show
 data RegressionTest = RegressionTest
   { label :: String
   , index :: [(Text, PackageDepsList)]
+  , env :: CompilerEnv
   , input :: PackageDepsList
   , expected :: [Text]
   }
@@ -184,12 +199,30 @@ regressionTests =
           , ("directory", "*")
           , ("filepath", "*")
           ]
+      , env = defaultEnv
       , expected =
           [ "base-2"
           , "bytestring-10000"
           , "containers-10000"
           , "directory-10000"
           , "filepath-1"
+          ]
+      }
+  , RegressionTest
+      { label = "installed base over newer base"
+      , index = [("base-1", []), ("base-2", [])]
+      , input =
+          [ ("base", "*")
+          ]
+      , env =
+          defaultEnv
+            { CompilerEnv.ghcPkgList =
+                Map.fromList
+                  [ ("base", makeVersion [1])
+                  ]
+            }
+      , expected =
+          [ "base-1"
           ]
       }
   ]

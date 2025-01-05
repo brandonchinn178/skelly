@@ -5,11 +5,12 @@ module Skelly.Core.Utils.PackageId (
   PackageName,
   PackageId (..),
   renderPackageId,
+  parsePackageId,
 ) where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Skelly.Core.Utils.Version (Version, renderVersion)
+import Skelly.Core.Utils.Version (Version, parseVersion, renderVersion)
 
 type PackageName = Text
 
@@ -25,3 +26,10 @@ renderPackageId PackageId{..} =
     [ packageName
     , renderVersion packageVersion
     ]
+
+parsePackageId :: Text -> Maybe PackageId
+parsePackageId s = do
+  let (pre, versionStr) = Text.breakOnEnd "-" s
+  let name = Text.dropEnd 1 pre
+  version <- parseVersion versionStr
+  pure $ PackageId name version

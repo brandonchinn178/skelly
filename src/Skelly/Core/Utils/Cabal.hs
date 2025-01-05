@@ -120,10 +120,10 @@ parseCabalFile packageId input = do
     -- TODO: read "Target platform" from `ghc --info`
     platform = Cabal.buildPlatform
 
-    -- TODO: get actual GHC version
+    -- TODO: get actual GHC version from CompilerEnv
     compilerInfo =
       Cabal.CompilerInfo
-        { compilerInfoId = Cabal.CompilerId Cabal.GHC (Cabal.mkVersion [9, 10, 0])
+        { compilerInfoId = Cabal.CompilerId Cabal.GHC (Cabal.mkVersion [9, 10, 1])
         , compilerInfoAbiTag = Cabal.NoAbiTag
         , compilerInfoCompat = Nothing
         , compilerInfoLanguages = Nothing

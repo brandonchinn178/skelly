@@ -14,15 +14,12 @@ module Skelly.Core.PackageIndex.Interface (
   withCursor,
   getPackageVersionInfo,
   getPackageInfo,
-
-  -- * Helpers
-  getLatestVersion,
 ) where
 
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Utils.Cabal (PackageInfo (..))
 import Skelly.Core.Utils.PackageId (PackageId, PackageName)
-import Skelly.Core.Utils.Version (Version, VersionRange, chooseBestVersion)
+import Skelly.Core.Utils.Version (Version, VersionRange)
 import UnliftIO.Exception (throwIO)
 
 data Service = Service
@@ -68,12 +65,3 @@ getPackageVersionInfo PackageIndexCursor{..} package =
 getPackageInfo :: PackageIndexCursor -> PackageId -> IO PackageInfo
 getPackageInfo PackageIndexCursor{..} packageId =
   lookupPackageInfo packageId >>= maybe (throwIO $ PackageIdNotFound packageId) pure
-
-{----- Helpers -----}
-
-getLatestVersion :: PackageIndexCursor -> PackageName -> IO Version
-getLatestVersion cursor package = do
-  PackageVersionInfo{..} <- getPackageVersionInfo cursor package
-  case chooseBestVersion preferredVersionRange availableVersions of
-    Nothing -> throwIO $ NoValidVersions package availableVersions preferredVersionRange
-    Just version -> pure version

@@ -27,6 +27,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Tuple (swap)
+import Skelly.Core.CompilerEnv (CompilerEnv)
+import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Logging (logDebug, logWarn)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig)
@@ -45,7 +47,11 @@ import Skelly.Core.Utils.Modules (
 import Skelly.Core.Utils.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Utils.PackageId qualified as PackageId
 import Skelly.Core.Utils.Path (listFiles)
-import Skelly.Core.Utils.Version (VersionRange (VersionRangeAnd), makeVersion)
+import Skelly.Core.Utils.Version (
+  Version,
+  VersionRange (VersionRangeAnd),
+  makeVersion,
+ )
 import System.Directory (getCurrentDirectory)
 import System.FilePath (takeDirectory, (</>))
 import System.Exit (ExitCode (..), exitWith)
@@ -58,8 +64,9 @@ import UnliftIO.Temporary (withSystemTempDirectory)
 data Service = Service
   { loggingService :: Logging.Service
   , pkgIndexService :: PackageIndex.Service
-  , solveDeps :: Solver.PackageDeps -> IO [PackageId]
+  , solveDeps :: CompilerEnv -> Solver.PackageDeps -> IO [PackageId]
   , loadPackageConfig :: IO PackageConfig
+  , loadCompilerEnv :: Version -> IO CompilerEnv
   }
 
 initService :: Logging.Service -> PackageIndex.Service -> Solver.Service -> Service
@@ -69,6 +76,7 @@ initService loggingService pkgIndexService solverService =
     , solveDeps = Solver.run solverService
     , pkgIndexService
     , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
+    , loadCompilerEnv = CompilerEnv.loadCompilerEnv
     }
 
 {----- Options -----}
@@ -130,6 +138,11 @@ run service@Service{..} Options{..} = do
   libs <- resolveTargets' (PackageConfig.packageLibraries pkg) libTargets
   bins <- resolveTargets' (PackageConfig.packageBinaries pkg) binTargets
 
+  -- load build environment
+  let ghcVersion = makeVersion [9, 10, 1] -- TODO: decide version from hspackage.toml
+  env <- loadCompilerEnv ghcVersion
+  let distDir = packageDistDir projectDir (CompilerEnv.ghcVersion env)
+
   -- TODO: check for Hackage updates
   -- TODO: getOrCreate lock file
   let
@@ -145,7 +158,7 @@ run service@Service{..} Options{..} = do
       ]
     allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
   logDebug loggingService "Resolving dependencies..."
-  allTransitiveDeps <- solveDeps allDeps
+  allTransitiveDeps <- solveDeps env allDeps
   logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
 
   -- download deps
@@ -194,7 +207,7 @@ run service@Service{..} Options{..} = do
         , let PackageConfig.SharedInfo{sourceDirs} = sharedInfo
         , dir <- sourceDirs
         ]
-  ghcBuild loggingService projectDir . concat $
+  ghcBuild loggingService env projectDir . concat $
     [ ["-odir", distDir </> "out"]
     , ["-hidir", distDir </> "out"]
     , ["-i" <> dir | DepInfo{..} <- depInfos, dir <- depSrcDirs]
@@ -206,7 +219,7 @@ run service@Service{..} Options{..} = do
   -- build binaries
   createDirectoryIfMissing True $ distDir </> "bin"
   forM_ binFiles $ \(binName, _, binModule, binNew) ->
-    ghcBuild loggingService projectDir . concat $
+    ghcBuild loggingService env projectDir . concat $
       [ ["-odir", distDir </> "out"]
       , ["-hidir", distDir </> "out"]
       , ["-i" <> dir | DepInfo{..} <- depInfos, dir <- depSrcDirs]
@@ -218,9 +231,6 @@ run service@Service{..} Options{..} = do
   where
     -- TODO: get actual directory where the hsproject.toml file is
     projectDir = unsafePerformIO getCurrentDirectory
-    -- TODO: get actual GHC version
-    ghcVersion = makeVersion [0, 0, 0]
-    distDir = packageDistDir projectDir ghcVersion
 
 data DepInfo = DepInfo
   { depSrcDirs :: [FilePath]
@@ -313,15 +323,15 @@ findModulesUnder dir = mapMaybe parseModulePath' <$> listFiles defaultOpts dir
 {----- GHC -----}
 
 -- TODO: log what modules are being built
-ghcBuild :: Logging.Service -> FilePath -> [String] -> IO ()
-ghcBuild loggingService cwd args' = withSystemTempDirectory "skelly-ghc" $ \tmpdir -> do
+ghcBuild :: Logging.Service -> CompilerEnv -> FilePath -> [String] -> IO ()
+ghcBuild loggingService env cwd args' = withSystemTempDirectory "skelly-ghc" $ \tmpdir -> do
   logDebug loggingService $ "Running ghc: " <> (Text.pack . show) args
 
   let argFile = tmpdir </> "ghc-args"
   writeFile argFile (unlines args)
 
   let ghcProc =
-        (Process.proc ghcBin ["@" <> argFile])
+        (Process.proc (CompilerEnv.ghcPath env) ["@" <> argFile])
           { Process.delegate_ctlc = True
           , Process.cwd = Just cwd
           }
@@ -330,8 +340,6 @@ ghcBuild loggingService cwd args' = withSystemTempDirectory "skelly-ghc" $ \tmpd
       ExitSuccess -> pure ()
       code@(ExitFailure _) -> exitWith code
   where
-    -- TODO: get ghc executable for the version to build with
-    ghcBin = "ghc"
     args =
       -- TODO: allow specifying ghc options on command line
       -- TODO: -j

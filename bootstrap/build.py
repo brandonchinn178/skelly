@@ -44,6 +44,7 @@ def init_build_dir():
             "-w", f"ghc-{ghc_version}",
             "--enable-tests",
             "--test-show-details=streaming",
+            "--ghc-options=-fdiagnostics-color=always",
         ],
         cwd=BUILD_DIR,
         check=True,
