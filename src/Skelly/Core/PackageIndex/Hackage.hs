@@ -21,7 +21,7 @@ import Codec.Serialise (Serialise)
 import Codec.Serialise qualified as Serialise
 import Codec.Serialise.Decoding qualified as Serialise
 import Codec.Serialise.Encoding qualified as Serialise
-import Control.Monad ((>=>))
+import Control.Monad (join, (>=>))
 import Data.ByteString.Lazy qualified as ByteStringL
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -218,11 +218,12 @@ syncAndLoadIndexPtrs repo Hackage.IndexCallbacks{..} = do
 
 getPreferredVersionRange :: Hackage.IndexCallbacks -> IndexPtrs -> PackageName -> IO (Maybe VersionRange)
 getPreferredVersionRange Hackage.IndexCallbacks{..} IndexPtrs{..} package =
-  traverse readFromIndex $ Map.lookup package preferredVersionsPtrs
+  fmap join . traverse readFromIndex $ Map.lookup package preferredVersionsPtrs
   where
     readFromIndex ptr = do
       Hackage.IndexEntry{indexEntryContent} <-
         indexLookupFileEntry ptr (Hackage.IndexPkgPrefs $ Cabal.toPackageName package)
       case Cabal.parsePreferredVersions package indexEntryContent of
-        Just preferredVersionRange -> pure preferredVersionRange
+        _ | indexEntryContent == "" -> pure Nothing -- I'm guessing "" means someone removed preferences for a package?
+        Just preferredVersionRange -> pure $ Just preferredVersionRange
         Nothing -> error . Text.unpack $ "Could not parse preferred versions for: " <> package

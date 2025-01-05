@@ -129,6 +129,8 @@ runSolver Service{..} packageCache deps0 = resolve (toStrictMap deps0) (insertAl
         Nothing -> pure []
         Just (pkgName, _, _, queue') ->
           case Map.Strict.lookup pkgName deps of
+            -- rts package doesn't actually exist
+            _ | pkgName == "rts" -> resolve deps queue'
             -- package is in the queue without registering a range; this is a bug
             Nothing -> error $ "Unexpectedly failed to find package " <> show pkgName <> ":\n" <> show deps
             Just range
