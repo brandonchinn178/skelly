@@ -102,6 +102,11 @@ run service@Service{..} initialDeps =
     runValidateT (runSolver service packageCache initialDeps') >>= \case
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
+  where
+    compileDeps = Map.traverseWithKey $ \package range ->
+      case compileRange range of
+        Just range' -> pure range'
+        Nothing -> throwIO $ UnsatisfiableVersionRange package range
 
 type ConflictSet = Set PackageName
 type PackageQueue = HashPSQ PackageName Int ()
@@ -145,7 +150,14 @@ runSolver Service{..} packageCache deps0 = resolve (toStrictMap deps0) (insertAl
         let pkgId = PackageId pkgName pkgVer
         liftIO . logDebug loggingService $ "Trying package: " <> renderPackageId pkgId
         -- get package dependencies
-        pkgDeps <- getPackageDepsCached packageCache pkgId >>= compileDeps
+        pkgDepsRaw <- getPackageDepsCached packageCache pkgId
+        pkgDeps <-
+          case traverse compileRange pkgDepsRaw of
+            Just pkgDeps -> pure pkgDeps
+            -- this package contains a dependency that has unsatisfiable bounds, so
+            -- this package is completely unbuildable.
+            -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
+            Nothing -> refute $ Set.singleton pkgName
         -- update constraints
         deps' <-
           mapErrors (Set.insert pkgName) $
@@ -198,14 +210,6 @@ sortTopological packageCache pkgs = do
     toNode pkgId@PackageId{packageName} = do
       deps <- getPackageDepsCached packageCache pkgId
       pure (pkgId, packageName, Map.keys deps)
-
-compileDeps :: MonadIO m => PackageDeps -> m (Map PackageName CompiledVersionRange)
-compileDeps = Map.traverseWithKey resolveRange
-  where
-    resolveRange package range =
-      case compileRange range of
-        Just range' -> pure range'
-        Nothing -> throwIO $ UnsatisfiableVersionRange package range
 
 -- | Rank the given package, where a higher rank means the package gets solved
 -- earlier.
