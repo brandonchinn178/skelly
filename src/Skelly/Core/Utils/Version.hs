@@ -101,12 +101,19 @@ parseVersionRange = runReadP (parseAny +++ parseRange)
     token s = ReadP.string s <* ReadP.skipSpaces
 
 renderVersionRange :: VersionRange -> Text
-renderVersionRange = \case
-  AnyVersion -> "*"
-  VersionWithOp op version -> renderVersionOp op <> renderVersion version
-  VersionRangeAnd l r -> Text.unwords [renderVersionRange l, "&&", renderVersionRange r]
-  VersionRangeOr l r -> Text.unwords [renderVersionRange l, "||", renderVersionRange r]
+renderVersionRange = go False
   where
+    go needsParens = \case
+      AnyVersion -> "*"
+      VersionWithOp op version -> renderVersionOp op <> renderVersion version
+      VersionRangeAnd l r -> parens needsParens $ Text.unwords [go True l, "&&", go True r]
+      VersionRangeOr l r -> parens needsParens $ Text.unwords [go True l, "||", go True r]
+
+    parens needsParens =
+      if needsParens
+        then \s -> "(" <> s <> ")"
+        else id
+
     renderVersionOp = \case
       VERSION_LT -> "< "
       VERSION_LTE -> "<= "

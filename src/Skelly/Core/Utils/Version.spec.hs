@@ -6,6 +6,15 @@ import Data.Text qualified as Text
 
 spec :: Spec
 spec = do
+  describe "VersionRange" $ do
+    describe "renderVersionRange" $ do
+      forM_
+        [ ("1.0", "1.0")
+        , ("> 1 && < 2 || > 3", "(> 1 && < 2) || > 3")
+        ] $ \(input, expected) -> do
+              it (show input <> " => " <> show expected) $ do
+                renderVersionRange (toRange input) `shouldBe` expected
+
   describe "CompiledVersionRange" $ do
     describe "compileRange" $ do
       it "returns Nothing for impossible conjunctions" $ do
@@ -88,16 +97,15 @@ spec = do
         inRange r (toVer "1.4") `shouldBe` True
 
     describe "renderCompiledRange" $ do
-      it "renders equality" $ do
-        renderCompiledRange (toRangeC "1.0") `shouldBe` "= 1.0"
-
-      it "renders a disjointed range" $ do
-        renderCompiledRange (toRangeC "^1.2 || ^1.4") `shouldBe` "(≥ 1.2 && < 1.3) || (≥ 1.4 && < 1.5)"
-
-      it "renders a simplified range" $ do
-        renderCompiledRange (toRangeC "^1.2 || ^1.3") `shouldBe` "≥ 1.2 && < 1.4"
-        renderCompiledRange (toRangeC "^1.3 || ^1.2") `shouldBe` "≥ 1.2 && < 1.4"
-        renderCompiledRange (toRangeC "^1.3 || < 1 || ^1.2") `shouldBe` "< 1 || (≥ 1.2 && < 1.4)"
+      forM_
+        [ ("1.0", "= 1.0")
+        , ("^1.2 || ^1.4", "(≥ 1.2 && < 1.3) || (≥ 1.4 && < 1.5)")
+        , ("^1.2 || ^1.3", "≥ 1.2 && < 1.4")
+        , ("^1.3 || ^1.2", "≥ 1.2 && < 1.4")
+        , ("^1.3 || < 1 || ^1.2", "< 1 || (≥ 1.2 && < 1.4)")
+        ] $ \(input, expected) -> do
+              it (show input <> " => " <> show expected) $ do
+                renderCompiledRange (toRangeC input) `shouldBe` expected
 
 toVer :: Text -> Version
 toVer s =
