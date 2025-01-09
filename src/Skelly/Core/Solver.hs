@@ -81,7 +81,7 @@ data Service = Service
   { loggingService :: Logging.Service
   , withCursor :: forall a. (PackageIndex.PackageIndexCursor -> IO a) -> IO a
   , getPackageDeps :: PackageIndex.PackageIndexCursor -> PackageId -> IO PackageDeps
-  , getPackageVersions :: PackageIndex.PackageIndexCursor -> PackageName -> IO [Version]
+  , getPackageVersionInfo :: PackageIndex.PackageIndexCursor -> PackageName -> IO PackageIndex.PackageVersionInfo
   , -- | Rank package, where higher is better.
     rankPackage :: PackageName -> Int
   }
@@ -92,7 +92,7 @@ initService loggingService pkgIndexService =
     { loggingService
     , withCursor = PackageIndex.withCursor pkgIndexService
     , getPackageDeps = \cursor -> fmap PackageIndex.packageDependencies . PackageIndex.getPackageInfo cursor
-    , getPackageVersions = \cursor -> fmap PackageIndex.availableVersions . PackageIndex.getPackageVersionInfo cursor
+    , getPackageVersionInfo = PackageIndex.getPackageVersionInfo
     , rankPackage = rankPackageDefault
     }
 
@@ -101,7 +101,7 @@ initService loggingService pkgIndexService =
 run :: Service -> CompilerEnv -> PackageDeps -> IO [PackageId]
 run service@Service{..} env initialDeps =
   withCursor $ \cursor -> do
-    packageCache <- initPackageCache (getPackageVersions cursor) (getPackageDeps cursor)
+    packageCache <- initPackageCache (getPackageVersionInfo cursor) (getPackageDeps cursor)
     initialDeps' <- compileDeps initialDeps
     runValidateT (runSolver service env packageCache initialDeps') >>= \case
       Right packages -> sortTopological packageCache packages
@@ -151,8 +151,11 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
               | otherwise -> resolvePackage deps queue' pkgName range
 
     resolvePackage deps queue pkgName range = do
-      allVersions <- getPackageVersionsCached packageCache pkgName
-      let versions = getPreferredVersions env pkgName range allVersions
+      PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
+      versions <-
+        case intersectRange preferredVersionRange range of
+          Just range' -> pure $ getPreferredVersions env pkgName range' availableVersions
+          Nothing -> refute . Set.singleton $ pkgName
 
       withBacktracking pkgName . flip map versions $ \pkgVer -> do
         let pkgId = PackageId pkgName pkgVer
@@ -324,22 +327,22 @@ getCachedVal Cache{..} k =
         pure (LRU.insert k v cacheMap', v)
 
 data PackageCache = PackageCache
-  { packageVersionCache :: Cache PackageName [Version]
+  { packageVersionCache :: Cache PackageName PackageIndex.PackageVersionInfo
   , packageDependencyCache :: Cache PackageId PackageDeps
   }
 
 initPackageCache ::
   MonadIO m =>
-  (PackageName -> IO [Version])
+  (PackageName -> IO PackageIndex.PackageVersionInfo)
   -> (PackageId -> IO PackageDeps)
   -> m PackageCache
-initPackageCache getVersions getDeps = do
-  packageVersionCache <- initCache getVersions
+initPackageCache getVersionInfo getDeps = do
+  packageVersionCache <- initCache getVersionInfo
   packageDependencyCache <- initCache getDeps
   pure PackageCache{..}
 
-getPackageVersionsCached :: MonadIO m => PackageCache -> PackageName -> m [Version]
-getPackageVersionsCached PackageCache{packageVersionCache} = getCachedVal packageVersionCache
+getPackageVersionInfoCached :: MonadIO m => PackageCache -> PackageName -> m PackageIndex.PackageVersionInfo
+getPackageVersionInfoCached PackageCache{packageVersionCache} = getCachedVal packageVersionCache
 
 getPackageDepsCached :: MonadIO m => PackageCache -> PackageId -> m PackageDeps
 getPackageDepsCached PackageCache{packageDependencyCache} = getCachedVal packageDependencyCache

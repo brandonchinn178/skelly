@@ -19,6 +19,7 @@ module Skelly.Core.Utils.Version (
   compileRange,
   renderCompiledRange,
   singletonRange,
+  wholeRange,
   intersectRange,
   isSingletonRange,
   getSingletonRange,
@@ -215,6 +216,10 @@ renderCompiledRange = renderBoolOps . map renderBounds . NonEmpty.toList . unCom
 -- | A helper for constructing a range matching just the given Version.
 singletonRange :: Version -> CompiledVersionRange
 singletonRange = CompiledVersionRange . NonEmpty.singleton . Interval.singleton
+
+-- | A helper for a range matching any version
+wholeRange :: CompiledVersionRange
+wholeRange = CompiledVersionRange . NonEmpty.singleton $ Interval.whole
 
 -- | Return True if the given range contains a single version.
 isSingletonRange :: CompiledVersionRange -> Bool

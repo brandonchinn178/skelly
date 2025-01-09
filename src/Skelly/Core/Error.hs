@@ -17,9 +17,11 @@ import Skelly.Core.Utils.PackageId (
   renderPackageId,
  )
 import Skelly.Core.Utils.Version (
+  CompiledVersionRange,
   Version,
   VersionRange,
   renderVersion,
+  renderCompiledRange,
   renderVersionRange,
  )
 
@@ -29,7 +31,7 @@ data SkellyError
   | SomeHackageError SomeHackageError
   | UnknownPackage PackageName
   | PackageIdNotFound PackageId
-  | NoValidVersions PackageName [Version] VersionRange
+  | NoValidVersions PackageName [Version] CompiledVersionRange
   | BadCabalFile PackageId Text
   | DependencyResolutionFailure -- ^ TODO: add conflict info
   | UnsatisfiableVersionRange PackageName VersionRange
@@ -62,7 +64,7 @@ renderSkellyError = \case
     "Package not found: " <> renderPackageId packageId
   NoValidVersions package availableVersions versionRange ->
     Text.unlines
-      [ "Package " <> package <> " has no versions in the range " <> renderVersionRange versionRange <> ":"
+      [ "Package " <> package <> " has no versions in the range " <> renderCompiledRange versionRange <> ":"
       , "Available versions: " <> Text.intercalate ", " (map renderVersion availableVersions)
       ]
   BadCabalFile packageId msg ->

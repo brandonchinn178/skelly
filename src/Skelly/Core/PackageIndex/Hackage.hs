@@ -40,7 +40,10 @@ import Skelly.Core.Utils.PackageId (
  )
 import Skelly.Core.Utils.Version (
   Version,
-  VersionRange (..),
+  CompiledVersionRange,
+  compileRange,
+  renderVersionRange,
+  wholeRange,
  )
 import System.FilePath ((</>))
 import UnliftIO.Directory (doesFileExist)
@@ -104,7 +107,7 @@ initPackageIndexCursor repo callbacks = do
               pure . Just $
                 PackageVersionInfo
                   { availableVersions = fromMaybe [] mAvailableVersions
-                  , preferredVersionRange = fromMaybe AnyVersion mPreferredVersionRange
+                  , preferredVersionRange = fromMaybe wholeRange mPreferredVersionRange
                   }
       , lookupPackageInfo = \packageId@PackageId{..} ->
           case Map.lookup packageName (packagePtrs ptrs) >>= Map.lookup packageVersion of
@@ -216,7 +219,7 @@ syncAndLoadIndexPtrs repo Hackage.IndexCallbacks{..} = do
     initAndAdjust :: (Ord k, Monoid a) => (a -> a) -> k -> Map k a -> Map k a
     initAndAdjust f = Map.alter (Just . f . fromMaybe mempty)
 
-getPreferredVersionRange :: Hackage.IndexCallbacks -> IndexPtrs -> PackageName -> IO (Maybe VersionRange)
+getPreferredVersionRange :: Hackage.IndexCallbacks -> IndexPtrs -> PackageName -> IO (Maybe CompiledVersionRange)
 getPreferredVersionRange Hackage.IndexCallbacks{..} IndexPtrs{..} package =
   fmap join . traverse readFromIndex $ Map.lookup package preferredVersionsPtrs
   where
@@ -225,5 +228,8 @@ getPreferredVersionRange Hackage.IndexCallbacks{..} IndexPtrs{..} package =
         indexLookupFileEntry ptr (Hackage.IndexPkgPrefs $ Cabal.toPackageName package)
       case Cabal.parsePreferredVersions package indexEntryContent of
         _ | indexEntryContent == "" -> pure Nothing -- I'm guessing "" means someone removed preferences for a package?
-        Just preferredVersionRange -> pure $ Just preferredVersionRange
+        Just range ->
+          case compileRange range of
+            Just preferredVersionRange -> pure $ Just preferredVersionRange
+            Nothing -> error . Text.unpack $ "Package " <> package <> " has unsatisfiable preferred versions: " <> renderVersionRange range
         Nothing -> error . Text.unpack $ "Could not parse preferred versions for: " <> package

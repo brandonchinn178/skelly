@@ -19,7 +19,7 @@ module Skelly.Core.PackageIndex.Interface (
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Utils.Cabal (PackageInfo (..))
 import Skelly.Core.Utils.PackageId (PackageId, PackageName)
-import Skelly.Core.Utils.Version (Version, VersionRange)
+import Skelly.Core.Utils.Version (Version, CompiledVersionRange)
 import UnliftIO.Exception (throwIO)
 
 data Service = Service
@@ -52,7 +52,7 @@ data PackageIndexCursor = PackageIndexCursor
 
 data PackageVersionInfo = PackageVersionInfo
   { availableVersions :: [Version]
-  , preferredVersionRange :: VersionRange
+  , preferredVersionRange :: CompiledVersionRange
   }
 
 withCursor :: Service -> (PackageIndexCursor -> IO a) -> IO a

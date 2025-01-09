@@ -22,7 +22,6 @@ import Skelly.Core.Utils.Version (
   Version,
   VersionOp (..),
   VersionRange (..),
-  compileRange,
   makeVersion,
   parseVersionRange,
   renderVersionRange,
@@ -67,10 +66,9 @@ execute CLI.Service{..} = run service
         , getPreferredVersion = \env pkgName ->
             PackageIndex.withCursor packageIndexService $ \cursor -> do
               PackageIndex.PackageVersionInfo{..} <- PackageIndex.getPackageVersionInfo cursor pkgName
-              let getPreferred range = Solver.getPreferredVersions env pkgName range availableVersions
-              case compileRange preferredVersionRange of
-                Just range | v : _ <- getPreferred range -> pure v
-                _ -> throwIO $ NoValidVersions pkgName availableVersions preferredVersionRange
+              case Solver.getPreferredVersions env pkgName preferredVersionRange availableVersions of
+                v : _ -> pure v
+                [] -> throwIO $ NoValidVersions pkgName availableVersions preferredVersionRange
         }
 
 {----- Execution -----}

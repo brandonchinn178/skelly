@@ -17,13 +17,14 @@ import Skelly.Core.CompilerEnv (CompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (SkellyError (DependencyResolutionFailure))
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Utils.PackageId (
   PackageId (..),
   PackageName,
   parsePackageId,
   renderPackageId,
  )
-import Skelly.Core.Utils.Version (makeVersion, parseVersionRange)
+import Skelly.Core.Utils.Version (makeVersion, parseVersionRange, wholeRange)
 
 spec :: Spec
 spec = do
@@ -95,6 +96,7 @@ spec = do
       `shouldSatisfy` P.throws (P.eq DependencyResolutionFailure)
 
   -- TODO: test helpful message with multiple backtracking failures
+  -- TODO: test respects preferredVersionRange
 
   describe "regression tests" $ do
     forM_ regressionTests $ \RegressionTest{..} ->
@@ -157,7 +159,12 @@ mkService' index rankPackage =
     { loggingService = Logging.disabledService
     , withCursor = \f -> f undefined
     , getPackageDeps = \_ PackageId{..} -> pure $ indexMap Map.! packageName Map.! packageVersion
-    , getPackageVersions = \_ name -> pure . Map.keys $ indexMap Map.! name
+    , getPackageVersionInfo = \_ name ->
+        pure
+          PackageIndex.PackageVersionInfo
+            { availableVersions = Map.keys $ indexMap Map.! name
+            , preferredVersionRange = wholeRange
+            }
     , rankPackage
     }
   where
