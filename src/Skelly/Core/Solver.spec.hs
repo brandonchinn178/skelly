@@ -232,4 +232,43 @@ regressionTests =
           [ "base-1"
           ]
       }
+  , RegressionTest
+      { label = "base + <lots of parent> + <lots of foo>"
+      , index =
+          concat
+            [ [("base-1", []), ("base-2", [])]
+            , [("parent1-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [("parent2-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [("parent3-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [("parent4-" <> showVer i, []) | i <- [1 .. 10000]]
+            , [ ( "foo-" <> showVer i
+                ,
+                  [ ("base", "< 2")
+                  , ("parent1", "< 2")
+                  , ("parent2", "< 2")
+                  , ("parent3", "< 2")
+                  , ("parent4", "< 2")
+                  ]
+                )
+              | i <- [1 .. 10000]
+              ]
+            ]
+      , input =
+          [ ("base", "*")
+          , ("parent1", "*")
+          , ("parent2", "*")
+          , ("parent3", "*")
+          , ("parent4", "*")
+          , ("foo", "*")
+          ]
+      , env = defaultEnv
+      , expected =
+          [ "base-1"
+          , "parent1-1"
+          , "parent2-1"
+          , "parent3-1"
+          , "parent4-1"
+          , "foo-10000"
+          ]
+      }
   ]
