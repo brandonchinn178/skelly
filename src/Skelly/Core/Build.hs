@@ -156,16 +156,15 @@ run service@Service{..} Options{..} = do
       | PackageConfig.BinaryInfo{sharedInfo} <- Map.elems bins
       , let PackageConfig.SharedInfo{dependencies} = sharedInfo
       ]
-    allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
+    allTargetDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
   logDebug loggingService "Resolving dependencies..."
-  allTransitiveDeps <- solveDeps env allDeps
-  logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
+  allDeps <- solveDeps env allTargetDeps
+  logDebug loggingService $ "allDeps = " <> Text.pack (show allDeps)
 
   -- download deps
   depInfos <-
     PackageIndex.withPackageIndex pkgIndexService $ \index ->
-      PackageIndex.withIndexCursor index $ \cursor ->
-        mapM (downloadDep index cursor) allTransitiveDeps
+      mapM (downloadDep index) allDeps
 
   -- get library build plan
   libPlans <-
@@ -236,9 +235,8 @@ data DepInfo = DepInfo
   { depSrcDirs :: [FilePath]
   }
 
-downloadDep :: PackageIndex.PackageIndex -> PackageIndex.PackageIndexCursor -> PackageId -> IO DepInfo
-downloadDep index cursor pkgId = do
-  pkgInfo <- PackageIndex.getPackageInfo cursor pkgId
+downloadDep :: PackageIndex.PackageIndex -> PackageInfo -> IO DepInfo
+downloadDep index pkgInfo = do
   let srcDirs = map (dest </>) $ PackageIndex.packageSrcDirs pkgInfo
 
   exists <- doesDirectoryExist dest

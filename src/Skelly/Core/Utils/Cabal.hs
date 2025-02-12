@@ -65,7 +65,8 @@ parsePreferredVersions package =
       _ -> Nothing
 
 data PackageInfo = PackageInfo
-  { packageSrcDirs :: [FilePath]
+  { packageId :: PackageId
+  , packageSrcDirs :: [FilePath]
   , packageDependencies :: Map Text VersionRange
   , packageDefaultExtensions :: [Text]
   }
@@ -90,7 +91,8 @@ parseCabalFile packageId input = do
 
   pure
     PackageInfo
-      { packageSrcDirs = map Cabal.getSymbolicPath . Cabal.hsSourceDirs . Cabal.libBuildInfo $ lib
+      { packageId
+      , packageSrcDirs = map Cabal.getSymbolicPath . Cabal.hsSourceDirs . Cabal.libBuildInfo $ lib
       , packageDependencies =
           Map.fromList
             [ (fromPackageName name, fromCabalVersionRange range)

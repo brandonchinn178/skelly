@@ -98,13 +98,13 @@ initService loggingService pkgIndexService =
 
 -- | Get the list of transitive dependencies in topological order, where
 -- packages may not depend on any packages later in the list.
-run :: Service -> CompilerEnv -> PackageDeps -> IO [PackageId]
+run :: Service -> CompilerEnv -> PackageDeps -> IO [PackageInfo]
 run service@Service{..} env initialDeps =
   withCursor $ \cursor -> do
     packageCache <- initPackageCache (getPackageVersionInfo cursor) (getPackageDeps cursor)
     initialDeps' <- compileDeps initialDeps
     runValidateT (runSolver service env packageCache initialDeps') >>= \case
-      Right packages -> sortTopological packageCache packages
+      Right packages -> pure $ sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
   where
     compileDeps = Map.traverseWithKey $ \package range ->
@@ -120,7 +120,7 @@ runSolver ::
   -> CompilerEnv
   -> PackageCache
   -> Map PackageName CompiledVersionRange
-  -> ValidateT IO ConflictSet [PackageId]
+  -> ValidateT IO ConflictSet [PackageInfo]
 runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (insertAll deps0 HashPSQ.empty)
   where
     toStrictMap = Map.Strict.fromAscList . Map.toAscList
@@ -213,15 +213,15 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
             (Map.Strict.zipWithAMatched constrain)
 
 -- | TODO: instead of re-sorting at the end, build an implication graph during solving
-sortTopological :: PackageCache -> [PackageId] -> IO [PackageId]
-sortTopological packageCache pkgs = do
-  (graph, nodeFromVertex, _) <- Graph.graphFromEdges <$> mapM toNode pkgs
-  pure . map (fromNode . nodeFromVertex) $ Graph.reverseTopSort graph
+sortTopological :: PackageCache -> [PackageInfo] -> [PackageInfo]
+sortTopological packageCache pkgs =
+  let (graph, nodeFromVertex, _) = Graph.graphFromEdges $ map toNode pkgs
+   in map (fromNode . nodeFromVertex) $ Graph.reverseTopSort graph
   where
-    fromNode (node, _, _) = node
-    toNode pkgId@PackageId{packageName} = do
-      deps <- getPackageDepsCached packageCache pkgId
-      pure (pkgId, packageName, Map.keys deps)
+    fromNode (pkgInfo, _, _) = pkgInfo
+    toNode pkgInfo@PackageInfo{..} =
+      let PackageId{packageName} = pkgInfo
+       in (pkgInfo, packageName, Map.keys packageDependencies)
 
 getPreferredVersions ::
   CompilerEnv
