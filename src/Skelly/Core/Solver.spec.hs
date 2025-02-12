@@ -236,6 +236,11 @@ regressionTests =
       { label = "base + <lots of parent> + <lots of foo>"
       , index =
           concat
+            -- IDEA: solver should go to the _first_ conflict (base) and add
+            -- foo's constraints to the map (foo is needed && all foo requires < 2)
+            --
+            -- IDEA: use sudoku algorithm, track all versions for all packages and
+            -- prune everything as we go
             [ [("base-1", []), ("base-2", [])]
             , [("parent1-" <> showVer i, []) | i <- [1 .. 10000]]
             , [("parent2-" <> showVer i, []) | i <- [1 .. 10000]]
