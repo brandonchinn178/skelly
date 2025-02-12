@@ -180,6 +180,7 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
         let queue' = insertAll pkgDeps queue
         (pkgId :) <$> resolve deps' queue'
 
+    -- FIXME: solver spends too long in Cabal-syntax-3.12.1.0 branch, needs to abort and try Cabal-syntax-3.14
     withBacktracking :: PackageName -> [ValidateT IO ConflictSet a] -> ValidateT IO ConflictSet a
     withBacktracking pkgName = \case
       [] -> empty

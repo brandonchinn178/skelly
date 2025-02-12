@@ -112,12 +112,12 @@ parseCabalFile packageId input = do
           { testsRequested = False
           , benchmarksRequested = False
           }
-        (const True)
+        (const True) -- FIXME: get current solver state (unix-2.8.5.1 + directory needs to set os-string to true)
         platform
         compilerInfo
         []
 
-    -- TODO: read "Target platform" from `ghc --info`
+    -- TODO: read "Target platform" from `ghc --info` (store in CompilerEnv)
     platform = Cabal.buildPlatform
 
     -- TODO: get actual GHC version from CompilerEnv
