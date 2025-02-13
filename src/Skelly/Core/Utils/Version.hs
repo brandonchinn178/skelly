@@ -24,8 +24,13 @@ module Skelly.Core.Utils.Version (
   isSingletonRange,
   getSingletonRange,
   inRange,
+  negateRange,
+
+  -- ** Testing
+  unsafeCompiledVersionRange,
 ) where
 
+import Data.Foldable1 qualified as Foldable1
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
 import Data.List.NonEmpty (NonEmpty)
@@ -132,6 +137,9 @@ newtype CompiledVersionRange =
     }
   deriving (Show, Eq)
 
+unsafeCompiledVersionRange :: NonEmpty (Interval Version) -> CompiledVersionRange
+unsafeCompiledVersionRange = CompiledVersionRange
+
 compileRange :: VersionRange -> Maybe CompiledVersionRange
 compileRange = fmap simplifyRange . go
   where
@@ -233,3 +241,65 @@ getSingletonRange = \case
 
 inRange :: CompiledVersionRange -> Version -> Bool
 inRange (CompiledVersionRange is) v = any (v `Interval.member`) is
+
+-- | Negate the given range, returning Nothing if the range is whole
+negateRange :: CompiledVersionRange -> Maybe CompiledVersionRange
+negateRange (CompiledVersionRange disjs) = do
+  -- negateRange $ (v1 ≤..≤ v2) || (v3 ≤..≤ v4)
+  -- ====> (< v1 || > v2) && (< v3 || > v4)
+  negatedConjs <- mapM negateInterval disjs
+
+  -- ====> (< v1 && < v3) || (> v2 && < v3) || (< v1 && > v4) || (> v2 && > v4)
+  negatedDisjs <- mapMaybeNE intersectAll . cartesian $ negatedConjs
+
+  pure $ simplifyRange $ CompiledVersionRange negatedDisjs
+  where
+    lt (x, b) = Interval.interval (Interval.NegInf, Interval.Open) (Interval.Finite x, b)
+    gt (x, b) = Interval.interval (Interval.Finite x, b) (Interval.PosInf, Interval.Open)
+
+    mapMaybeNE :: (a -> Maybe b) -> NonEmpty a -> Maybe (NonEmpty b)
+    mapMaybeNE f = NonEmpty.nonEmpty . mapMaybe f . NonEmpty.toList
+
+    negateInterval i =
+      case (Interval.lowerBound' i, Interval.upperBound' i) of
+        ((Interval.NegInf, _), (Interval.PosInf, _)) ->
+          Nothing
+        ((Interval.NegInf, _), (Interval.Finite x, b)) ->
+          Just . NonEmpty.fromList $
+            [ gt (x, negateBoundary b)
+            ]
+        ((Interval.Finite lo, b1), (Interval.Finite hi, b2)) ->
+          Just . NonEmpty.fromList $
+            [ lt (lo, negateBoundary b1)
+            , gt (hi, negateBoundary b2)
+            ]
+        ((Interval.Finite x, b), (Interval.PosInf, _)) ->
+          Just . NonEmpty.fromList $
+            [ lt (x, negateBoundary b)
+            ]
+        -- invalid intervals
+        _ -> error $ "Invalid interval: " <> show i
+
+    negateBoundary = \case
+      Interval.Open -> Interval.Closed
+      Interval.Closed -> Interval.Open
+
+    -- Convert a conjunction list of disjunctions into a disjunction list of conjunctions
+    -- by distributing the operations
+    --
+    --   (A || B) && (C || D) && (E || F)
+    -- ====>
+    --   (A && C && E) || (A && C && F) || (A && D && E) || (A && D && F)
+    --   || (B && C && E) || (B && C && F) || (B && D && E) || (B && D && F)
+    --
+    -- This amounts to a cartesian product of the list: https://stackoverflow.com/a/4120170/4966649
+    --
+    -- Another way to look at it:
+    --   Conjunctions (Disjunctions Version) -> Disjunctions (Conjunctions Versions)
+    -- is flipping the two functors, same as `[IO a] -> IO [a]`
+    cartesian = sequence
+
+    intersectAll :: NonEmpty (Interval Version) -> Maybe (Interval Version)
+    intersectAll vs =
+      let v = Foldable1.foldl1 Interval.intersection vs
+       in if Interval.null v then Nothing else Just v
