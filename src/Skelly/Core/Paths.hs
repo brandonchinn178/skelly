@@ -2,6 +2,7 @@ module Skelly.Core.Paths (
   skellyConfigDir,
   skellyCacheDir,
   packageDistDir,
+  skellyLockFile,
 ) where
 
 import Data.Text qualified as Text
@@ -23,3 +24,6 @@ packageDistDir projectDir ghcVersion =
   projectDir
     </> "dist"
     </> ("ghc-" <> Text.unpack (renderVersion ghcVersion))
+
+skellyLockFile :: FilePath
+skellyLockFile = "skelly.lock"

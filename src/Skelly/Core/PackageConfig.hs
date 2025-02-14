@@ -19,6 +19,7 @@ module Skelly.Core.PackageConfig (
   packageDependencies,
   packageLibraries,
   packageBinaries,
+  allDependencies,
 
   -- * Methods
   loadPackageConfig,
@@ -35,7 +36,7 @@ import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.Types.PackageId (PackageName)
 import Skelly.Core.Types.Version (
   Version,
-  VersionRange,
+  VersionRange (VersionRangeAnd),
   parseVersion,
   parseVersionRange,
   renderVersionRange,
@@ -202,6 +203,13 @@ packageLibraries = getParsedField $ \ParsedPackageConfig{_packageLibraries = x} 
 
 packageBinaries :: PackageConfig -> Map PackageName BinaryInfo
 packageBinaries = getParsedField $ \ParsedPackageConfig{_packageBinaries = x} -> x
+
+allDependencies :: PackageConfig -> DependencyMap
+allDependencies config =
+  Map.unionsWith VersionRangeAnd . concat $
+    [ [ dependencies | LibraryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageLibraries config ]
+    , [ dependencies | BinaryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageBinaries config ]
+    ]
 
 {----- Updaters -----}
 

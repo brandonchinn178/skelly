@@ -21,7 +21,7 @@ import Skelly.Core.Types.Version (
   Version,
   VersionRange,
   renderVersion,
-  renderCompiledRange,
+  prettyCompiledRange,
   renderVersionRange,
  )
 
@@ -35,6 +35,7 @@ data SkellyError
   | BadCabalFile PackageId Text
   | DependencyResolutionFailure -- ^ TODO: add conflict info
   | UnsatisfiableVersionRange PackageName VersionRange
+  | InvalidLockFile
   deriving (Show, Eq)
 
 instance Exception SkellyError where
@@ -64,7 +65,7 @@ renderSkellyError = \case
     "Package not found: " <> renderPackageId packageId
   NoValidVersions package availableVersions versionRange ->
     Text.unlines
-      [ "Package " <> package <> " has no versions in the range " <> renderCompiledRange versionRange <> ":"
+      [ "Package " <> package <> " has no versions in the range " <> prettyCompiledRange versionRange <> ":"
       , "Available versions: " <> Text.intercalate ", " (map renderVersion availableVersions)
       ]
   BadCabalFile packageId msg ->
@@ -75,3 +76,4 @@ renderSkellyError = \case
   DependencyResolutionFailure -> "Failed to resolve dependencies"
   UnsatisfiableVersionRange package range ->
     "Unsatisfiable version range for package " <> package <> ": " <> renderVersionRange range
+  InvalidLockFile -> "Invalid lock file. Either revert it to a known good state or delete it to generate afresh"

@@ -96,7 +96,7 @@ spec = do
         inRange r (toVer "1.3") `shouldBe` False
         inRange r (toVer "1.4") `shouldBe` True
 
-    describe "renderCompiledRange" $ do
+    describe "prettyCompiledRange" $ do
       forM_
         [ ("1.0", "= 1.0")
         , ("^1.2 || ^1.4", "(≥ 1.2 && < 1.3) || (≥ 1.4 && < 1.5)")
@@ -105,7 +105,7 @@ spec = do
         , ("^1.3 || < 1 || ^1.2", "< 1 || (≥ 1.2 && < 1.4)")
         ] $ \(input, expected) -> do
               it (show input <> " => " <> show expected) $ do
-                renderCompiledRange (toRangeC input) `shouldBe` expected
+                prettyCompiledRange (toRangeC input) `shouldBe` expected
 
 toVer :: Text -> Version
 toVer s =

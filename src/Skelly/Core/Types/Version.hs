@@ -17,7 +17,9 @@ module Skelly.Core.Types.Version (
   -- * Range resolution
   CompiledVersionRange,
   compileRange,
+  parseCompiledRange,
   renderCompiledRange,
+  prettyCompiledRange,
   singletonRange,
   wholeRange,
   intersectRange,
@@ -26,6 +28,8 @@ module Skelly.Core.Types.Version (
   inRange,
 ) where
 
+import Control.Monad ((>=>))
+import Data.Aeson qualified as Aeson
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
 import Data.List.NonEmpty (NonEmpty)
@@ -132,6 +136,14 @@ newtype CompiledVersionRange =
     }
   deriving (Show, Eq)
 
+instance Aeson.FromJSON CompiledVersionRange where
+  parseJSON = Aeson.withText "CompiledVersionRange" $ \s ->
+    maybe (fail "Invalid CompiledVersionRange") pure $
+      parseCompiledRange s
+
+instance Aeson.ToJSON CompiledVersionRange where
+  toJSON = Aeson.toJSON . renderCompiledRange
+
 compileRange :: VersionRange -> Maybe CompiledVersionRange
 compileRange = fmap simplifyRange . go
   where
@@ -184,19 +196,28 @@ simplifyRange = CompiledVersionRange . foldNE simplify . sort . unCompiledVersio
       let go (a NonEmpty.:| as) = f a $ maybe [] (uncurry (:) . go) (NonEmpty.nonEmpty as)
        in uncurry (NonEmpty.:|) . go
 
+parseCompiledRange :: Text -> Maybe CompiledVersionRange
+parseCompiledRange = parseVersionRange >=> compileRange
+
 renderCompiledRange :: CompiledVersionRange -> Text
-renderCompiledRange = renderBoolOps . map renderBounds . NonEmpty.toList . unCompiledVersionRange
+renderCompiledRange = renderCompiledRange' False
+
+prettyCompiledRange :: CompiledVersionRange -> Text
+prettyCompiledRange = renderCompiledRange' True
+
+renderCompiledRange' :: Bool -> CompiledVersionRange -> Text
+renderCompiledRange' pretty = renderBoolOps . map renderBounds . NonEmpty.toList . unCompiledVersionRange
   where
     renderBounds i
       | Just v <- Interval.extractSingleton i = ["= " <> renderVersion v]
       | otherwise =
           let fromLo = \case
                 (Interval.Finite v, Interval.Open) -> Just $ "> " <> renderVersion v
-                (Interval.Finite v, Interval.Closed) -> Just $ "≥ " <> renderVersion v
+                (Interval.Finite v, Interval.Closed) -> Just $ gteSymbol <> " " <> renderVersion v
                 _ -> Nothing
               fromHi = \case
                 (Interval.Finite v, Interval.Open) -> Just $ "< " <> renderVersion v
-                (Interval.Finite v, Interval.Closed) -> Just $ "≤ " <> renderVersion v
+                (Interval.Finite v, Interval.Closed) -> Just $ lteSymbol <> " " <> renderVersion v
                 _ -> Nothing
            in catMaybes
                 [ fromLo $ Interval.lowerBound' i
@@ -212,6 +233,9 @@ renderCompiledRange = renderBoolOps . map renderBounds . NonEmpty.toList . unCom
         | bounds <- parts
         , let needsParens = length parts > 1 && length bounds > 1
         ]
+
+    gteSymbol = if pretty then "≥" else ">="
+    lteSymbol = if pretty then "≤" else "<="
 
 -- | A helper for constructing a range matching just the given Version.
 singletonRange :: Version -> CompiledVersionRange

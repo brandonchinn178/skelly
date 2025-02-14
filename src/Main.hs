@@ -7,6 +7,7 @@ import Skelly.CLI.Command
 import Skelly.CLI.CommandAdd
 import Skelly.CLI.CommandBuild
 import Skelly.CLI.CommandClean
+import Skelly.CLI.CommandLock
 import Skelly.CLI.CommandRun
 import Skelly.CLI.CommandTest
 import Skelly.CLI.Service qualified as CLI
@@ -38,6 +39,7 @@ parseOptions =
         | cmd@Command{..} <-
             [ commandAdd
             , commandBuild
+            , commandLock
             , commandClean
             , commandRun
             , commandTest
