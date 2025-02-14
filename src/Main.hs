@@ -38,6 +38,7 @@ parseOptions =
         | cmd@Command{..} <-
             [ commandAdd
             , commandBuild
+            , commandLock
             , commandClean
             , commandRun
             , commandTest
