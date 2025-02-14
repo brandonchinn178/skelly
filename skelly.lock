@@ -1,0 +1,41 @@
+{
+    "version": 0,
+    "ghc-version": "9.10.1",
+    "packages": {
+        "skelly": {
+            "dependencies": {
+                "Cabal-syntax": "< 4",
+                "aeson": "< 3",
+                "base": "< 5",
+                "bytestring": "< 1",
+                "cabal-install": "< 4",
+                "containers": "< 1",
+                "crypton": "< 2",
+                "data-interval": "< 3",
+                "directory": "< 2",
+                "file-embed": ">= 0.0.9 && < 1",
+                "filepath": "< 2",
+                "hackage-security": "< 1",
+                "http-client": "< 1",
+                "http-client-tls": "< 1",
+                "http-types": "< 1",
+                "lrucache": "< 2",
+                "megaparsec": "< 10",
+                "network-uri": "< 3",
+                "optparse-applicative": "< 1",
+                "process": "< 2",
+                "psqueues": "< 1",
+                "serialise": "< 1",
+                "tar": "< 1",
+                "text": "< 3",
+                "time": "< 2",
+                "toml-reader": "< 1",
+                "transformers": "< 1",
+                "unliftio": "< 1",
+                "zlib": "< 1"
+            }
+        }
+    },
+    "dependencies": {
+    }
+}

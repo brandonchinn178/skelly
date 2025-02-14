@@ -69,7 +69,7 @@ import Skelly.Core.Types.Version (
   inRange,
   intersectRange,
   isSingletonRange,
-  renderCompiledRange,
+  prettyCompiledRange,
   singletonRange,
  )
 import UnliftIO.MVar (MVar, newMVar, modifyMVar)
@@ -199,8 +199,8 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
             case intersectRange r1 r2 of
               Just r -> pure r
               Nothing -> do
-                let oldRange = renderCompiledRange r1
-                    newRange = renderCompiledRange r2
+                let oldRange = prettyCompiledRange r1
+                    newRange = prettyCompiledRange r2
                 liftIO . logDebug loggingService . Text.intercalate "\n" $
                   [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
                   , "\tCurrent: " <> oldRange
