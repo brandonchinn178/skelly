@@ -37,6 +37,13 @@ import Skelly.Core.PackageIndex qualified as PackageIndex
 -- import Skelly.Core.Parse (parseImports)
 import Skelly.Core.Paths (packageDistDir, skellyCacheDir)
 import Skelly.Core.Solver qualified as Solver
+import Skelly.Core.Types.PackageId (PackageId (PackageId), renderPackageId)
+import Skelly.Core.Types.PackageId qualified as PackageId
+import Skelly.Core.Types.Version (
+  Version,
+  VersionRange (VersionRangeAnd),
+  makeVersion,
+ )
 import Skelly.Core.Utils.Default (defaultOpts)
 import Skelly.Core.Utils.Modules (
   ModuleName,
@@ -44,14 +51,7 @@ import Skelly.Core.Utils.Modules (
   parseModulePath,
   renderModuleName,
  )
-import Skelly.Core.Utils.PackageId (PackageId (PackageId), renderPackageId)
-import Skelly.Core.Utils.PackageId qualified as PackageId
 import Skelly.Core.Utils.Path (listFiles)
-import Skelly.Core.Utils.Version (
-  Version,
-  VersionRange (VersionRangeAnd),
-  makeVersion,
- )
 import System.Directory (getCurrentDirectory)
 import System.FilePath (takeDirectory, (</>))
 import System.Exit (ExitCode (..), exitWith)

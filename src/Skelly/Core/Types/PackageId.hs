@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Skelly.Core.Utils.PackageId (
+module Skelly.Core.Types.PackageId (
   PackageName,
   PackageId (..),
   renderPackageId,
@@ -10,7 +10,7 @@ module Skelly.Core.Utils.PackageId (
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Skelly.Core.Utils.Version (Version, parseVersion, renderVersion)
+import Skelly.Core.Types.Version (Version, parseVersion, renderVersion)
 
 type PackageName = Text
 

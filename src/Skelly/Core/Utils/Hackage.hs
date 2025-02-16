@@ -68,9 +68,9 @@ import Network.URI.Static qualified as URI
 import Skelly.Core.Error (SkellyError (..), SomeHackageError (..))
 import Skelly.Core.Logging (LogLevel (..), logAt, logDebug)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.Types.PackageId (PackageId (..))
 import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.HTTP qualified as HTTP
-import Skelly.Core.Utils.PackageId (PackageId (..))
 import System.FilePath (takeDirectory)
 import UnliftIO.Directory (createDirectoryIfMissing)
 import UnliftIO.Exception (handle, throwIO)

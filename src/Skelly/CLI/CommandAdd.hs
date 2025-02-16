@@ -17,8 +17,8 @@ import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
-import Skelly.Core.Utils.PackageId (PackageName)
-import Skelly.Core.Utils.Version (
+import Skelly.Core.Types.PackageId (PackageName)
+import Skelly.Core.Types.Version (
   Version,
   VersionOp (..),
   VersionRange (..),

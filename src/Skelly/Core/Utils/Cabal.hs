@@ -42,8 +42,8 @@ import Distribution.Types.Version qualified as Cabal
 import Distribution.Types.VersionRange qualified as Cabal
 import Distribution.Utils.Path qualified as Cabal
 import Skelly.Core.Error (SkellyError (..))
-import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
-import Skelly.Core.Utils.Version (
+import Skelly.Core.Types.PackageId (PackageId (..), renderPackageId)
+import Skelly.Core.Types.Version (
   Version,
   VersionOp (..),
   VersionRange (..),
