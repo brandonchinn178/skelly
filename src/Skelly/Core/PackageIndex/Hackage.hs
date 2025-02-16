@@ -31,20 +31,20 @@ import Data.Text qualified as Text
 import Network.URI (URI)
 import Skelly.Core.PackageIndex.Interface
 import Skelly.Core.Paths (skellyCacheDir)
-import Skelly.Core.Utils.Cabal qualified as Cabal
-import Skelly.Core.Utils.Hackage qualified as Hackage
-import Skelly.Core.Utils.PackageId (
+import Skelly.Core.Types.PackageId (
   PackageId (..),
   PackageName,
   renderPackageId,
  )
-import Skelly.Core.Utils.Version (
+import Skelly.Core.Types.Version (
   Version,
   CompiledVersionRange,
   compileRange,
   renderVersionRange,
   wholeRange,
  )
+import Skelly.Core.Utils.Cabal qualified as Cabal
+import Skelly.Core.Utils.Hackage qualified as Hackage
 import System.FilePath ((</>))
 import UnliftIO.Directory (doesFileExist)
 import UnliftIO.Exception (throwIO)

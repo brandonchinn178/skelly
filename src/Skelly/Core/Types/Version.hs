@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Skelly.Core.Utils.Version (
+module Skelly.Core.Types.Version (
   -- * Version
   Version,
   makeVersion,

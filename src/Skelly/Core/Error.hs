@@ -11,12 +11,12 @@ module Skelly.Core.Error (
 import Control.Exception (Exception (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Skelly.Core.Utils.PackageId (
+import Skelly.Core.Types.PackageId (
   PackageId,
   PackageName,
   renderPackageId,
  )
-import Skelly.Core.Utils.Version (
+import Skelly.Core.Types.Version (
   CompiledVersionRange,
   Version,
   VersionRange,

@@ -56,12 +56,12 @@ import Skelly.Core.Error (
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageIndex qualified as PackageIndex
-import Skelly.Core.Utils.PackageId (
+import Skelly.Core.Types.PackageId (
   PackageId (..),
   PackageName,
   renderPackageId,
  )
-import Skelly.Core.Utils.Version (
+import Skelly.Core.Types.Version (
   CompiledVersionRange,
   Version,
   VersionRange,

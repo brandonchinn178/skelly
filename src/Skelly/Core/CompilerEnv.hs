@@ -13,12 +13,12 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Skelly.Core.Error (SkellyError (..))
-import Skelly.Core.Utils.PackageId (
+import Skelly.Core.Types.PackageId (
   PackageId (..),
   PackageName,
   parsePackageId,
  )
-import Skelly.Core.Utils.Version (Version, parseVersion, renderVersion)
+import Skelly.Core.Types.Version (Version, parseVersion, renderVersion)
 import System.Directory (canonicalizePath, doesFileExist, findExecutables)
 import System.FilePath (takeDirectory, (</>))
 import System.Process (readProcess)

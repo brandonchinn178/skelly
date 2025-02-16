@@ -33,14 +33,14 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging qualified as Logging
-import Skelly.Core.Utils.TOML qualified as TOML
-import Skelly.Core.Utils.Version (
+import Skelly.Core.Types.Version (
   Version,
   VersionRange,
   parseVersion,
   parseVersionRange,
   renderVersionRange,
  )
+import Skelly.Core.Utils.TOML qualified as TOML
 import System.FilePath (takeDirectory, (</>))
 import UnliftIO.Directory (doesFileExist, getCurrentDirectory)
 import UnliftIO.Exception (fromEither, fromEitherM, throwIO)

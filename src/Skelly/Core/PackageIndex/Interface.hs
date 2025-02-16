@@ -17,9 +17,9 @@ module Skelly.Core.PackageIndex.Interface (
 ) where
 
 import Skelly.Core.Error (SkellyError (..))
+import Skelly.Core.Types.PackageId (PackageId, PackageName)
+import Skelly.Core.Types.Version (Version, CompiledVersionRange)
 import Skelly.Core.Utils.Cabal (PackageInfo (..))
-import Skelly.Core.Utils.PackageId (PackageId, PackageName)
-import Skelly.Core.Utils.Version (Version, CompiledVersionRange)
 import UnliftIO.Exception (throwIO)
 
 data Service = Service

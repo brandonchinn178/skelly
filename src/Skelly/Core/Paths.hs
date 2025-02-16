@@ -5,7 +5,7 @@ module Skelly.Core.Paths (
 ) where
 
 import Data.Text qualified as Text
-import Skelly.Core.Utils.Version (Version, renderVersion)
+import Skelly.Core.Types.Version (Version, renderVersion)
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Directory (XdgDirectory (..), getXdgDirectory)

@@ -10,9 +10,9 @@ module Skelly.Core.Utils.InstalledPackageInfo (
 
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Skelly.Core.Types.PackageId (PackageId (..), renderPackageId)
+import Skelly.Core.Types.Version (renderVersion)
 import Skelly.Core.Utils.Modules (ModuleName, renderModuleName)
-import Skelly.Core.Utils.PackageId (PackageId (..), renderPackageId)
-import Skelly.Core.Utils.Version (renderVersion)
 
 data InstalledPackageInfo = InstalledPackageInfo
   { installedPackageId :: PackageId

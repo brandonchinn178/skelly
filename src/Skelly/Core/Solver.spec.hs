@@ -18,13 +18,13 @@ import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (SkellyError (DependencyResolutionFailure))
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageIndex qualified as PackageIndex
-import Skelly.Core.Utils.PackageId (
+import Skelly.Core.Types.PackageId (
   PackageId (..),
   PackageName,
   parsePackageId,
   renderPackageId,
  )
-import Skelly.Core.Utils.Version (makeVersion, parseVersionRange, wholeRange)
+import Skelly.Core.Types.Version (makeVersion, parseVersionRange, wholeRange)
 
 spec :: Spec
 spec = do
