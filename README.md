@@ -1,5 +1,7 @@
 # Skelly
 
+<img src="assets/mascot.jpg" height="200px" align="left" hspace="20" />
+
 Skelly is an opinionated build system for Haskell.
 
 Features:
