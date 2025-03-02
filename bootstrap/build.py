@@ -7,6 +7,7 @@ if sys.version_info < (3, 11):
     raise Exception("Bootstrap build requires at least Python 3.11")
 
 import itertools
+import os
 import re
 import shutil
 import subprocess
@@ -52,7 +53,9 @@ def init_build_dir():
 
 def build():
     init_build_dir()
-    subprocess.run(
+    os.chdir(BUILD_DIR)
+    os.execv(
+        shutil.which("cabal"),
         [
             "cabal",
             "install",
@@ -60,8 +63,6 @@ def build():
             "--overwrite-policy=always",
             f"--installdir={DIST_DIR}",
         ],
-        cwd=BUILD_DIR,
-        check=True,
     )
 
 # TODO: remove when `skelly test` works
@@ -122,7 +123,8 @@ def test(args):
     cabal = (BUILD_DIR / "skelly.cabal").read_text()
     (BUILD_DIR / "skelly.cabal").write_text(cabal + "\n" + "\n".join(cabal_lines) + "\n")
 
-    subprocess.run(["cabal", "test", *(f"--test-option={arg}" for arg in args)], cwd=BUILD_DIR, check=True)
+    os.chdir(BUILD_DIR)
+    os.execv(shutil.which("cabal"), ["cabal", "test", *(f"--test-option={arg}" for arg in args)])
 
 class HsPackage(NamedTuple):
     config: dict[str, Any]
