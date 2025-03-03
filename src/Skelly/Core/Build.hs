@@ -64,16 +64,16 @@ import UnliftIO.Temporary (withSystemTempDirectory)
 data Service = Service
   { loggingService :: Logging.Service
   , pkgIndexService :: PackageIndex.Service
-  , solveDeps :: CompilerEnv -> Solver.PackageDeps -> IO [PackageId]
+  -- , solveDeps :: CompilerEnv -> Solver.PackageDeps -> IO [PackageId]
   , loadPackageConfig :: IO PackageConfig
   , loadCompilerEnv :: Version -> IO CompilerEnv
   }
 
 initService :: Logging.Service -> PackageIndex.Service -> Solver.Service -> Service
-initService loggingService pkgIndexService solverService =
+initService loggingService pkgIndexService _ =
   Service
     { loggingService
-    , solveDeps = Solver.run solverService
+    -- , solveDeps = Solver.run solverService
     , pkgIndexService
     , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
     , loadCompilerEnv = CompilerEnv.loadCompilerEnv
@@ -158,7 +158,8 @@ run service@Service{..} Options{..} = do
       ]
     allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
   logDebug loggingService "Resolving dependencies..."
-  allTransitiveDeps <- solveDeps env allDeps
+  -- allTransitiveDeps <- solveDeps env allDeps
+  let allTransitiveDeps = undefined env allDeps :: [PackageId]
   logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
 
   -- download deps

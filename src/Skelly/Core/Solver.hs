@@ -17,7 +17,7 @@ References:
 module Skelly.Core.Solver (
   Service (..),
   initService,
-  PackageDeps,
+  SolvedPackage (..),
   run,
 
   -- * Helpers
@@ -48,10 +48,7 @@ import Data.Text qualified as Text
 import Skelly.Core.CompilerEnv (CompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (
-  SkellyError (
-    DependencyResolutionFailure,
-    UnsatisfiableVersionRange
-  ),
+  SkellyError (DependencyResolutionFailure),
  )
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
@@ -96,21 +93,31 @@ initService loggingService pkgIndexService =
     , rankPackage = rankPackageDefault
     }
 
+-- | A map from package name to a version range and the origins of this dependency.
+newtype PackageMap = PackageMap (Map PackageName (CompiledVersionRange, [PackageOrigin]))
+
+-- | For a dependency, the package/version that requested the dependency and the version range
+-- that package wanted for this dependency.
+data PackageOrigin = PackageOrigin
+  { name :: PackageName
+  , version :: Version
+  , range :: VersionRange
+  }
+
+data SolvedPackage = SolvedPackage
+  { packageId :: PackageId
+  , packageDeps :: Map PackageName CompiledVersionRange
+  }
+
 -- | Get the list of transitive dependencies in topological order, where
 -- packages may not depend on any packages later in the list.
-run :: Service -> CompilerEnv -> PackageDeps -> IO [PackageId]
+run :: Service -> CompilerEnv -> Map PackageName CompiledVersionRange -> IO [SolvedPackage]
 run service@Service{..} env initialDeps =
   withCursor $ \cursor -> do
     packageCache <- initPackageCache (getPackageVersionInfo cursor) (getPackageDeps cursor)
-    initialDeps' <- compileDeps initialDeps
-    runValidateT (runSolver service env packageCache initialDeps') >>= \case
+    runValidateT (runSolver service env packageCache initialDeps) >>= \case
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
-  where
-    compileDeps = Map.traverseWithKey $ \package range ->
-      case compileRange range of
-        Just range' -> pure range'
-        Nothing -> throwIO $ UnsatisfiableVersionRange package range
 
 type ConflictSet = Set PackageName
 type PackageQueue = HashPSQ PackageName Int ()
@@ -120,7 +127,7 @@ runSolver ::
   -> CompilerEnv
   -> PackageCache
   -> Map PackageName CompiledVersionRange
-  -> ValidateT IO ConflictSet [PackageId]
+  -> ValidateT IO ConflictSet [SolvedPackage]
 runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (insertAll deps0 HashPSQ.empty)
   where
     toStrictMap = Map.Strict.fromAscList . Map.toAscList
@@ -131,9 +138,9 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
         (Map.keys deps)
 
     resolve ::
-      Strict.Map PackageName CompiledVersionRange -- ^ The dependency constraints so far
+      PackageMap -- ^ The dependency constraints so far
       -> PackageQueue
-      -> ValidateT IO ConflictSet [PackageId]
+      -> ValidateT IO ConflictSet [SolvedPackage]
     resolve deps queue =
       case HashPSQ.minView queue of
         Nothing -> pure []
@@ -178,7 +185,8 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
               pkgDeps
         -- recurse
         let queue' = insertAll pkgDeps queue
-        (pkgId :) <$> resolve deps' queue'
+        let pkg = SolvedPackage { packageId = pkgId, packageDeps = pkgDeps }
+        (pkg :) <$> resolve deps' queue'
 
     -- FIXME: solver spends too long in Cabal-syntax-3.12.1.0 branch, needs to abort and try Cabal-syntax-3.14
     withBacktracking :: PackageName -> [ValidateT IO ConflictSet a] -> ValidateT IO ConflictSet a
@@ -213,15 +221,15 @@ runSolver Service{..} env packageCache deps0 = resolve (toStrictMap deps0) (inse
             (Map.Strict.zipWithAMatched constrain)
 
 -- | TODO: instead of re-sorting at the end, build an implication graph during solving
-sortTopological :: PackageCache -> [PackageId] -> IO [PackageId]
+sortTopological :: PackageCache -> [SolvedPackage] -> IO [SolvedPackage]
 sortTopological packageCache pkgs = do
   (graph, nodeFromVertex, _) <- Graph.graphFromEdges <$> mapM toNode pkgs
   pure . map (fromNode . nodeFromVertex) $ Graph.reverseTopSort graph
   where
     fromNode (node, _, _) = node
-    toNode pkgId@PackageId{packageName} = do
-      deps <- getPackageDepsCached packageCache pkgId
-      pure (pkgId, packageName, Map.keys deps)
+    toNode pkg@SolvedPackage{packageId} = do
+      deps <- getPackageDepsCached packageCache packageId
+      pure (pkg, packageName packageId, Map.keys deps)
 
 getPreferredVersions ::
   CompilerEnv

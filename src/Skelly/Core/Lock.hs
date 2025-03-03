@@ -11,8 +11,10 @@ module Skelly.Core.Lock (
   Options (..),
 ) where
 
+import Crypto.Hash qualified as Crypto
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Map.Merge qualified as Map
 import Data.Text (Text)
 import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
@@ -28,7 +30,9 @@ import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig, loadPackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.Paths (skellyLockFile)
-import Skelly.Core.Types.Version (compileRange, makeVersion)
+import Skelly.Core.Solver qualified as Solver
+import Skelly.Core.Types.PackageId (PackageId (..), PackageName)
+import Skelly.Core.Types.Version (CompiledVersionRange, compileRange, intersectRange, makeVersion)
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Directory (doesFileExist, getCurrentDirectory)
@@ -36,12 +40,14 @@ import UnliftIO.Exception (fromEither)
 
 data Service = Service
   { loggingService :: Logging.Service
+  , solveDeps :: CompilerEnv -> Map PackageName CompiledVersionRange -> IO [Solver.SolvedPackage]
   }
 
-initService :: Logging.Service -> Service
-initService loggingService =
+initService :: Logging.Service -> Solver.Service -> Service
+initService loggingService solverService =
   Service
     { loggingService
+    , solveDeps = Solver.run solverService
     }
 
 {----- Options -----}
@@ -53,7 +59,7 @@ data Options = Options
 {----- Run -----}
 
 run :: Service -> Options -> IO ()
-run Service{..} _ = do
+run service@Service{..} _ = do
   config <- loadPackageConfig loggingService
   packages <- fromEither $ Map.fromList <$> mapM toPackageInfo [config]
 
@@ -72,7 +78,7 @@ run Service{..} _ = do
 
   case status of
     LockFileOutdated mLockFile -> do
-      newLock <- updateLockFile env mLockFile packages
+      newLock <- updateLockFile service env mLockFile packages
       writeLockFile lockFilePath newLock
       putStrLn "Lock file updated."
     LockFileUpToDate -> do
@@ -97,17 +103,23 @@ toPackageInfo config = do
   pure (name, LockFile.LockFilePackageInfo{..})
 
 updateLockFile ::
+  Service ->
   CompilerEnv ->
   Maybe LockFile ->
   Map PackageName LockFilePackageInfo ->
   IO LockFile
-updateLockFile env _ packages = do
-  -- LockFileDepInfo
-  --   { version :: Version
-  --   , integrity :: Digest SHA256
-  --   , deps :: Map Text VersionRange
-  --   }
-  let dependencies = mempty
+updateLockFile Service{..} env _ packages = do
+  deps <- solveDeps env =<< mergeAll (Map.elems packages)
+  let dependencies =
+        [ (packageName packageId, info)
+        | Solver.SolvedPackage{..} <- deps
+        , let info =
+                LockFile.LockFileDepInfo
+                  { version = packageVersion packageId
+                  , integrity = Crypto.hash mempty -- TODO: get checksum of all files
+                  , deps = packageDeps
+                  }
+        ]
 
   pure
     LockFile.LockFile
@@ -115,3 +127,22 @@ updateLockFile env _ packages = do
       , packages
       , dependencies
       }
+  where
+    mergeAll = \case
+      [] -> pure acc
+      LockFile.LockFilePackageInfo{deps} : rest -> do
+        acc' <-
+          Map.mergeA
+            Map.preserveMissing
+            Map.preserveMissing
+            (Map.zipWithAMatched mergeRange)
+            acc
+            deps
+        mergeAll acc' rest
+
+    allDeps =
+      Map.mergeA
+        Map.preserveMissing
+        Map.preserveMissing
+      Map.unionsWith intersectRange $
+        Map.map (\LockFile.LockFilePackageInfo{deps} -> deps) packages

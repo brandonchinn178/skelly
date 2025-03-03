@@ -19,4 +19,5 @@ commandLock =
 execute :: CLI.Service -> Lock.Options -> IO ()
 execute CLI.Service{..} = Lock.run service
   where
-    service = Lock.initService loggingService
+    solverService = Solver.initService loggingService packageIndexService
+    service = Lock.initService loggingService solverService
