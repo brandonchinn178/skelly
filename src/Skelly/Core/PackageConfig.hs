@@ -29,10 +29,10 @@ module Skelly.Core.PackageConfig (
 
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.Types.PackageId (PackageName)
 import Skelly.Core.Types.Version (
   Version,
   VersionRange,
@@ -55,15 +55,15 @@ data PackageConfig = PackageConfig
   }
 
 data ParsedPackageConfig = ParsedPackageConfig
-  { _packageName :: Text
+  { _packageName :: PackageName
   , _packageVersion :: Version
   , _packageToolchainGHC :: VersionRange
   , _packageDependencies :: DependencyMap
-  , _packageLibraries :: Map Text LibraryInfo
-  , _packageBinaries :: Map Text BinaryInfo
+  , _packageLibraries :: Map PackageName LibraryInfo
+  , _packageBinaries :: Map PackageName BinaryInfo
   }
 
-type DependencyMap = Map Text VersionRange
+type DependencyMap = Map PackageName VersionRange
 
 -- TODO: add ghc options
 -- TODO: add default extensions
@@ -147,7 +147,7 @@ decodeParsedConfig = do
     -- TODO: get deps in [skelly.lib.dependencies] if present
     -- TODO: default name: same name as package
     -- TODO: error if duplicate names
-    decodeLibraries :: DependencyMap -> TOML.Decoder (Map Text LibraryInfo)
+    decodeLibraries :: DependencyMap -> TOML.Decoder (Map PackageName LibraryInfo)
     decodeLibraries deps =
       pure . Map.singleton "skelly" $
         LibraryInfo
@@ -168,7 +168,7 @@ decodeParsedConfig = do
     --         if directory exists => [src/bin/<name>/]
     --         otherwise => []
     -- TODO: error if duplicate names
-    decodeBinaries :: DependencyMap -> TOML.Decoder (Map Text BinaryInfo)
+    decodeBinaries :: DependencyMap -> TOML.Decoder (Map PackageName BinaryInfo)
     decodeBinaries deps =
       pure . Map.singleton "skelly" $
         BinaryInfo
@@ -185,7 +185,7 @@ decodeParsedConfig = do
 getParsedField :: (ParsedPackageConfig -> a) -> PackageConfig -> a
 getParsedField f PackageConfig{parsedConfig} = f parsedConfig
 
-packageName :: PackageConfig -> Text
+packageName :: PackageConfig -> PackageName
 packageName = getParsedField $ \ParsedPackageConfig{_packageName = x} -> x
 
 packageVersion :: PackageConfig -> Version
@@ -197,10 +197,10 @@ packageToolchainGHC = getParsedField $ \ParsedPackageConfig{_packageToolchainGHC
 packageDependencies :: PackageConfig -> DependencyMap
 packageDependencies = getParsedField $ \ParsedPackageConfig{_packageDependencies = x} -> x
 
-packageLibraries :: PackageConfig -> Map Text LibraryInfo
+packageLibraries :: PackageConfig -> Map PackageName LibraryInfo
 packageLibraries = getParsedField $ \ParsedPackageConfig{_packageLibraries = x} -> x
 
-packageBinaries :: PackageConfig -> Map Text BinaryInfo
+packageBinaries :: PackageConfig -> Map PackageName BinaryInfo
 packageBinaries = getParsedField $ \ParsedPackageConfig{_packageBinaries = x} -> x
 
 {----- Updaters -----}
@@ -208,7 +208,7 @@ packageBinaries = getParsedField $ \ParsedPackageConfig{_packageBinaries = x} ->
 savePackageConfig :: PackageConfig -> IO ()
 savePackageConfig PackageConfig{..} = TOML.encodeFile configPath rawConfig
 
-addDependency :: Text -> VersionRange -> PackageConfig -> PackageConfig
+addDependency :: PackageName -> VersionRange -> PackageConfig -> PackageConfig
 addDependency dep versionRange config@PackageConfig{..} =
   config
     { parsedConfig =
