@@ -7,7 +7,9 @@
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
+import Data.Function ((&))
 import Data.List (elemIndex)
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -24,7 +26,14 @@ import Skelly.Core.Types.PackageId (
   parsePackageId,
   renderPackageId,
  )
-import Skelly.Core.Types.Version (makeVersion, parseVersionRange, wholeRange)
+import Skelly.Core.Types.Version (
+  CompiledVersionRange,
+  VersionRange,
+  compileRange,
+  makeVersion,
+  parseVersionRange,
+  wholeRange,
+ )
 
 spec :: Spec
 spec = do
@@ -67,7 +76,7 @@ spec = do
         , "or-2.1"
         , "pvp-1.5.1"
         ]
-    runSolver (mkService index) input `shouldSatisfy` P.returns (P.eq expected)
+    runSolver (mkSimpleService index) input `shouldSatisfy` P.returns (P.eq expected)
 
   prop "returns topologically sorted deps" $ do
     -- A -> B -> C -> ...
@@ -77,7 +86,8 @@ spec = do
       Gen.shuffle $ zip names ranks
     let names = map fst namesAndRanks
         rankPackage = toRankPackage namesAndRanks
-        index =
+
+    let index =
           zipWith
             ( \name mDep ->
                 ( PackageId name (makeVersion [1, 0])
@@ -86,13 +96,20 @@ spec = do
             )
             names
             (map Just (drop 1 names) ++ [Nothing])
-        input = [(name, "*") | name <- names]
+        service =
+          defaultTestService
+            & withRankPackage rankPackage
+            & withIndex index
+
+    let input = [(name, "*") | name <- names]
         expected = reverse names
-    liftIO (run (mkService' index rankPackage) defaultEnv (toPackageDeps input))
-      `shouldSatisfy` P.returns (map packageName P.>>> P.eq expected)
+        getName SolvedPackage{packageId} = packageName packageId
+
+    liftIO (map getName <$> run service defaultEnv (toPackageDeps input))
+      `shouldSatisfy` P.returns (P.eq expected)
 
   it "throws when resolution fails" $ do
-    runSolver (mkService [("foo-2.0", [])]) [("foo", "^1.0")]
+    runSolver (mkSimpleService [("foo-2.0", [])]) [("foo", "^1.0")]
       `shouldSatisfy` P.throws (P.eq DependencyResolutionFailure)
 
   -- TODO: test helpful message with multiple backtracking failures
@@ -101,8 +118,8 @@ spec = do
   describe "regression tests" $ do
     forM_ regressionTests $ \RegressionTest{..} ->
       it label $ do
-        packages <- run (mkService index) env (toPackageDeps input)
-        map renderPackageId packages `shouldBe` expected
+        packages <- run (mkSimpleService index) env (toPackageDeps input)
+        map renderSolvedPackageId packages `shouldBe` expected
 
 genName :: Gen PackageName
 genName = Gen.text (Range.linear 1 20) $ Gen.frequency [(10, Gen.alphaNum), (1, pure '-')]
@@ -116,7 +133,10 @@ toRankPackage namesAndRanks = \name -> fromMaybe (-1) $ lookup name namesAndRank
 {----- Helpers -----}
 
 runSolver :: Service -> PackageDepsList -> IO [Text]
-runSolver service input = map renderPackageId <$> run service defaultEnv (toPackageDeps input)
+runSolver service input = map renderSolvedPackageId <$> run service defaultEnv (toPackageDeps input)
+
+renderSolvedPackageId :: SolvedPackage -> Text
+renderSolvedPackageId SolvedPackage{packageId} = renderPackageId packageId
 
 defaultEnv :: CompilerEnv
 defaultEnv =
@@ -127,13 +147,18 @@ defaultEnv =
     , ghcPkgList = Map.empty
     }
 
-toPackageDeps :: PackageDepsList -> PackageDeps
-toPackageDeps deps =
+toRawPackageDeps :: PackageDepsList -> Map PackageName VersionRange
+toRawPackageDeps deps =
   Map.fromList
     [ (name, range)
     | (name, rangeStr) <- deps
     , let range = fromMaybe (error $ "Invalid range: " <> Text.unpack rangeStr) $ parseVersionRange rangeStr
     ]
+
+toPackageDeps :: PackageDepsList -> Map PackageName CompiledVersionRange
+toPackageDeps = fmap compile . toRawPackageDeps
+  where
+    compile r = fromMaybe (error $ "Unsatisfiable range: " <> show r) . compileRange $ r
 
 toPackageId :: Text -> PackageId
 toPackageId s =
@@ -144,35 +169,47 @@ toPackageId s =
 -- | Dependencies and their version ranges, as a list.
 type PackageDepsList = [(Text, Text)]
 
-mkService :: [(Text, PackageDepsList)] -> Service
-mkService index = mkService' index' rankPackageAlpha
-  where
-    index' = map (first toPackageId) index
+mkSimpleService :: [(Text, PackageDepsList)] -> Service
+mkSimpleService index =
+  defaultTestService
+    & withIndex (map (first toPackageId) index)
 
-    -- in tests, iterate over packages in alphabetical order
-    rankPackageAlpha name = fromMaybe (-1) $ name `elemIndex` sortedPackages
-    sortedPackages = reverse [packageName | (PackageId{..}, _) <- index']
-
-mkService' :: [(PackageId, PackageDepsList)] -> (PackageName -> Int) -> Service
-mkService' index rankPackage =
+defaultTestService :: Service
+defaultTestService =
   Service
     { loggingService = Logging.disabledService
-    , withCursor = \f -> f undefined
-    , getPackageDeps = \_ PackageId{..} -> pure $ indexMap Map.! packageName Map.! packageVersion
+    , withCursor = \f -> f (error "cursor unexpectedly evaluated")
+    , getPackageDeps = \_ _ -> error "getPackageDeps not implemented"
+    , getPackageVersionInfo = \_ _ -> error "getPackageVersionInfo not implemented"
+    , rankPackage = \_ -> 0
+    }
+
+withIndex :: [(PackageId, PackageDepsList)] -> Service -> Service
+withIndex index service =
+  service
+    { getPackageDeps = \_ PackageId{..} ->
+        pure $ indexMap Map.! packageName Map.! packageVersion
     , getPackageVersionInfo = \_ name ->
         pure
           PackageIndex.PackageVersionInfo
             { availableVersions = Map.keys $ indexMap Map.! name
             , preferredVersionRange = wholeRange
             }
-    , rankPackage
+    , rankPackage = rankPackageAlpha
     }
   where
     indexMap =
       Map.fromListWith (<>) $
-        [ (packageName, Map.singleton packageVersion (toPackageDeps deps))
+        [ (packageName, Map.singleton packageVersion (toRawPackageDeps deps))
         | (PackageId{..}, deps) <- index
         ]
+
+    -- in tests, iterate over packages in alphabetical order
+    rankPackageAlpha name = fromMaybe (-1) $ name `elemIndex` sortedPackages
+    sortedPackages = reverse [packageName | (PackageId{..}, _) <- index]
+
+withRankPackage :: (PackageName -> Int) -> Service -> Service
+withRankPackage rankPackage service = service{rankPackage = rankPackage}
 
 showVer :: Int -> Text
 showVer = Text.pack . show
