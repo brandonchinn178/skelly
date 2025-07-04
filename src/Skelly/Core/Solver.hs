@@ -23,7 +23,7 @@ module Skelly.Core.Solver (
   run,
 
   -- * Helpers
-  getPreferredVersions,
+  sortVersions,
   rankPackageDefault,
 ) where
 
@@ -152,12 +152,23 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
 
     resolvePackage deps queue pkgName range = do
       PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
-      -- FIXME: if no availableVersions in range, there must be a PackageOrigin with an unsatisfiable range; find it and error
-      -- FIXME: order by preferredVersionRange, not intersect
       versions <-
-        case intersectRange preferredVersionRange range of
-          Just range' -> pure $ getPreferredVersions env pkgName range' availableVersions
-          Nothing -> ValidateT.refute . Set.singleton $ pkgName
+        case filter (inRange range) availableVersions of
+          [] -> do
+            -- if there are no availableVersions in range, there must be a
+            -- PackageOrigin with an unsatisfiable range; find it and error
+            let hasInvalidRange PackageOrigin{range = originRange} =
+                  case compileRange originRange of
+                    Just range' -> all (not . inRange range') availableVersions
+                    Nothing -> True
+            case lookupPackageMap pkgName deps of
+              Just (_, origins) | invalidOrigin : _ <- filter hasInvalidRange origins -> do
+                let PackageOrigin{name = originName} = invalidOrigin
+                ValidateT.refute $ Set.fromList [pkgName, originName]
+              -- TODO: this can happen if someone puts "> 100" in hspackage.toml
+              _ -> error $ "Unexpectedly failed to find any versions in range for " <> show pkgName
+          versions -> do
+            pure $ sortVersions env pkgName preferredVersionRange versions
 
       withBacktracking pkgName . flip map versions $ \pkgVer -> do
         let pkgId = PackageId pkgName pkgVer
@@ -185,7 +196,6 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
         let pkg = SolvedPackage { packageId = pkgId, packageDeps = pkgDeps }
         (pkg :) <$> resolve deps' queue'
 
-    -- FIXME: panic if initial list is empty
     withBacktracking :: PackageName -> [ValidateT ConflictSet IO a] -> ValidateT ConflictSet IO a
     withBacktracking pkgName = \case
       [] -> ValidateT.refute mempty
@@ -210,21 +220,26 @@ sortTopological packageCache pkgs = do
       deps <- getPackageDepsCached packageCache packageId
       pure (pkg, packageName packageId, Map.keys deps)
 
-getPreferredVersions ::
+-- | Order versions in the following order first, then latest to oldest.
+--     1. Pre-installed versions
+--     2. Preferred versions
+--     3. Other versions
+sortVersions ::
   CompilerEnv
   -> PackageName
   -> CompiledVersionRange
   -> [Version]
   -> [Version]
-getPreferredVersions env pkgName range = orderVersions . filter (inRange range)
+sortVersions env pkgName preferredVersionRange =
+  List.sortOn $ \version -> (toVersionType version, Down version)
   where
-    -- Order versions from latest to oldest, unless it's a pre-installed
-    -- package like `base`, where that version should be first.
-    orderVersions = List.sortOn $ \version ->
-      ( Down . maybe False (== version) $
-          Map.lookup pkgName (CompilerEnv.ghcPkgList env)
-      , Down version
-      )
+    toVersionType :: Version -> Int
+    toVersionType version
+      | Just version == installedVersion = 1
+      | inRange preferredVersionRange version = 2
+      | otherwise = 100
+
+    installedVersion = Map.lookup pkgName (CompilerEnv.ghcPkgList env)
 
 -- | Rank the given package, where a higher rank means the package gets solved
 -- earlier.

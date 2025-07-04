@@ -66,7 +66,7 @@ execute CLI.Service{..} = run service
         , getPreferredVersion = \env pkgName ->
             PackageIndex.withCursor packageIndexService $ \cursor -> do
               PackageIndex.PackageVersionInfo{..} <- PackageIndex.getPackageVersionInfo cursor pkgName
-              case Solver.getPreferredVersions env pkgName preferredVersionRange availableVersions of
+              case Solver.sortVersions env pkgName preferredVersionRange availableVersions of
                 v : _ -> pure v
                 [] -> throwIO $ NoValidVersions pkgName availableVersions preferredVersionRange
         }
