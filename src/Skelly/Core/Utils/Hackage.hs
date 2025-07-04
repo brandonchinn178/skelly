@@ -25,7 +25,7 @@ module Skelly.Core.Utils.Hackage (
 
   -- * Methods
   withRepo,
-  withBootstrappedRepo,
+  withRepoNoBootstrap,
   runBootstrap,
   updateMetadata,
   downloadPackageTarGz,
@@ -126,7 +126,7 @@ type Repository = Hackage.Repository Hackage.RemoteTemp
 -- | Provide a Repository
 withRepo :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
 withRepo service@Service{..} opts f = wrapHackageErrors $
-  withBootstrappedRepo service opts $ \repo -> do
+  withRepoNoBootstrap service opts $ \repo -> do
     -- Initialize Hackage repo if running for the first time
     Hackage.requiresBootstrap repo >>= \case
       False -> pure ()
@@ -136,16 +136,20 @@ withRepo service@Service{..} opts f = wrapHackageErrors $
         -- their own keys, or if user is using their own Hackage server
         runBootstrap opts repo
 
-        -- FIXME: update repo if older than 1 day
         logDebug loggingService "Download Hackage repo for the first time"
         updateMetadata repo
 
+    -- FIXME: update repo if older than 1 day
+    updateMetadata repo
+    _ <- error "TODO"
+
     f repo
 
--- | Same as 'withRepo', but assumes the repo has already been bootstrapped. Operations
--- will fail if this is not the case.
-withBootstrappedRepo :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
-withBootstrappedRepo Service{..} RepoOptions{..} =
+-- | Same as 'withRepo', but without running any bootstrapping steps.
+--
+-- Operations will fail if bootstrapping has not been done, so prefer 'withRepo'.
+withRepoNoBootstrap :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
+withRepoNoBootstrap Service{..} RepoOptions{..} =
   RemoteRepo.withRepository
     httpLib
     [hackageURI]
