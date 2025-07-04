@@ -5,6 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 {- |
 This module contains the dependency resolution solver.
@@ -26,8 +27,10 @@ module Skelly.Core.Solver (
   rankPackageDefault,
 ) where
 
-import Control.Applicative (Alternative (..))
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Validate (ValidateT, runValidateT)
+import Control.Monad.Validate qualified as ValidateT
 import Data.Bifunctor (first)
 import Data.Cache.LRU (LRU)
 import Data.Cache.LRU qualified as LRU
@@ -118,7 +121,7 @@ runSolver ::
   -> CompilerEnv
   -> PackageCache
   -> PackageDeps
-  -> ValidateT IO ConflictSet [SolvedPackage]
+  -> ValidateT ConflictSet IO [SolvedPackage]
 runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (insertAll deps0 HashPSQ.empty)
   where
     insertAll deps queue =
@@ -130,7 +133,7 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
     resolve ::
       PackageMap -- ^ The dependency constraints so far
       -> PackageQueue
-      -> ValidateT IO ConflictSet [SolvedPackage]
+      -> ValidateT ConflictSet IO [SolvedPackage]
     resolve deps queue =
       case HashPSQ.minView queue of
         Nothing -> pure []
@@ -154,7 +157,7 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
       versions <-
         case intersectRange preferredVersionRange range of
           Just range' -> pure $ getPreferredVersions env pkgName range' availableVersions
-          Nothing -> refute . Set.singleton $ pkgName
+          Nothing -> ValidateT.refute . Set.singleton $ pkgName
 
       withBacktracking pkgName . flip map versions $ \pkgVer -> do
         let pkgId = PackageId pkgName pkgVer
@@ -167,10 +170,10 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
             -- this package contains a dependency that has unsatisfiable bounds, so
             -- this package is completely unbuildable.
             -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
-            Nothing -> refute $ Set.singleton pkgName
+            Nothing -> ValidateT.refute $ Set.singleton pkgName
         -- update constraints
         deps' <-
-          mapErrors (Set.insert pkgName) $
+          addErrors (Set.singleton pkgName) $
             mergeDeps
               loggingService
               pkgId
@@ -183,9 +186,9 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
         (pkg :) <$> resolve deps' queue'
 
     -- FIXME: panic if initial list is empty
-    withBacktracking :: PackageName -> [ValidateT IO ConflictSet a] -> ValidateT IO ConflictSet a
+    withBacktracking :: PackageName -> [ValidateT ConflictSet IO a] -> ValidateT ConflictSet IO a
     withBacktracking pkgName = \case
-      [] -> empty
+      [] -> ValidateT.refute mempty
       m : ms -> m `catchErrors` \conflicts ->
         -- only continue if the current package-version is involved in the
         -- conflict; if it didn't, then that means some package lower in the
@@ -194,7 +197,7 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
         -- conflict
         if pkgName `Set.member` conflicts
           then addErrors (Set.delete pkgName conflicts) $ withBacktracking pkgName ms
-          else refute conflicts
+          else ValidateT.refute conflicts
 
 -- | TODO: instead of re-sorting at the end, build an implication graph during solving
 sortTopological :: PackageCache -> [SolvedPackage] -> IO [SolvedPackage]
@@ -273,7 +276,7 @@ mergeDeps ::
   PackageId ->
   Map PackageName (VersionRange, CompiledVersionRange) ->
   PackageMap ->
-  ValidateT IO ConflictSet PackageMap
+  ValidateT ConflictSet IO PackageMap
 mergeDeps loggingService pkgId newDeps (PackageMap deps) =
   PackageMap <$>
     Map.Strict.mergeA
@@ -293,7 +296,7 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
               , "\tCurrent: " <> prettyCompiledRange oldRange
               , "\tNew:     " <> prettyCompiledRange newRange
               ]
-            refute $ Set.singleton depName
+            ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
 
       pure (range, origins1 <> origins2)
 
@@ -308,51 +311,14 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
 
 {----- Validation -----}
 
--- FIXME: monad validate
-newtype ValidateT m e a = ValidateT (m (Either e a))
+catchErrors :: Monad m => ValidateT e m a -> (e -> ValidateT e m a) -> ValidateT e m a
+catchErrors m f =
+  lift (runValidateT m) >>= \case
+    Right a -> pure a
+    Left e -> f e
 
-instance Functor m => Functor (ValidateT m e) where
-  fmap f (ValidateT m) = ValidateT $ (fmap . fmap) f m
-instance (Applicative m, Monoid e) => Applicative (ValidateT m e) where
-  pure = ValidateT . pure . Right
-  ValidateT mf <*> ValidateT mx = ValidateT $
-    ( \ef ex ->
-        case (ef, ex) of
-          (Left e1, Left e2) -> Left (e1 <> e2)
-          (Left e, Right _) -> Left e
-          (Right _, Left e) -> Left e
-          (Right f, Right x) -> Right (f x)
-    )
-      <$> mf
-      <*> mx
-instance (Monad m, Monoid e) => Monad (ValidateT m e) where
-  ValidateT ma >>= k = ValidateT $
-    ma >>= \case
-      Left e -> pure $ Left e
-      Right a -> runValidateT $ k a
-instance (Monad m, Monoid e) => Alternative (ValidateT m e) where
-  empty = ValidateT (pure $ Left mempty)
-  m1 <|> m2 = m1 `catchErrors` \e -> addErrors e m2
-instance (MonadIO m, Monoid e) => MonadIO (ValidateT m e) where
-  liftIO = ValidateT . liftIO . fmap Right
-
-runValidateT :: ValidateT m e a -> m (Either e a)
-runValidateT (ValidateT m) = m
-
-refute :: Applicative m => e -> ValidateT m e a
-refute = ValidateT . pure . Left
-
-catchErrors :: Monad m => ValidateT m e a -> (e -> ValidateT m e a) -> ValidateT m e a
-catchErrors (ValidateT m) f = ValidateT $
-  m >>= \case
-    Right x -> pure $ Right x
-    Left e -> runValidateT $ f e
-
-addErrors :: (Functor m, Monoid e) => e -> ValidateT m e a -> ValidateT m e a
-addErrors e1 = mapErrors (e1 <>)
-
-mapErrors :: Functor m => (e1 -> e2) -> ValidateT m e1 a -> ValidateT m e2 a
-mapErrors f (ValidateT m) = ValidateT $ first f <$> m
+addErrors :: (Monad m, Monoid e) => e -> ValidateT e m a -> ValidateT e m a
+addErrors e1 = ValidateT.mapErrors (e1 <>)
 
 {----- Cached package info -----}
 
