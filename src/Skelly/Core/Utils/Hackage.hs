@@ -136,6 +136,7 @@ withRepo service@Service{..} opts f = wrapHackageErrors $
         -- their own keys, or if user is using their own Hackage server
         runBootstrap opts repo
 
+        -- FIXME: update repo if older than 1 day
         logDebug loggingService "Download Hackage repo for the first time"
         updateMetadata repo
 

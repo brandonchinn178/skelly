@@ -149,6 +149,8 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
 
     resolvePackage deps queue pkgName range = do
       PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
+      -- FIXME: if no availableVersions in range, there must be a PackageOrigin with an unsatisfiable range; find it and error
+      -- FIXME: order by preferredVersionRange, not intersect
       versions <-
         case intersectRange preferredVersionRange range of
           Just range' -> pure $ getPreferredVersions env pkgName range' availableVersions
@@ -180,7 +182,7 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
         let pkg = SolvedPackage { packageId = pkgId, packageDeps = pkgDeps }
         (pkg :) <$> resolve deps' queue'
 
-    -- FIXME: solver spends too long in Cabal-syntax-3.12.1.0 branch, needs to abort and try Cabal-syntax-3.14
+    -- FIXME: panic if initial list is empty
     withBacktracking :: PackageName -> [ValidateT IO ConflictSet a] -> ValidateT IO ConflictSet a
     withBacktracking pkgName = \case
       [] -> empty
@@ -306,6 +308,7 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
 
 {----- Validation -----}
 
+-- FIXME: monad validate
 newtype ValidateT m e a = ValidateT (m (Either e a))
 
 instance Functor m => Functor (ValidateT m e) where

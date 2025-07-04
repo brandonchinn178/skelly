@@ -152,7 +152,7 @@ class HsPackage(NamedTuple):
         # library
         modules = self.get_modules()
         lib_deps = [
-            f"{name} {version_range}"
+            f"{name} {_rewrite_range(version_range)}"
             for name, version_range in self.config["skelly"]["dependencies"].items()
         ]
         lines += [
@@ -219,6 +219,12 @@ class HsPackage(NamedTuple):
             modules.append(".".join([*f.parts[0:-1], f.stem]))
 
         return modules
+
+def _rewrite_range(range: str) -> str:
+    if range.startswith("^"):
+        return f"^>= {range[1:]}"
+    else:
+        return range
 
 if __name__ == "__main__":
     main()
