@@ -44,12 +44,16 @@ data Service = Service
   , solveDeps :: CompilerEnv -> Map PackageName CompiledVersionRange -> IO [Solver.SolvedPackage]
   }
 
-initService :: Logging.Service -> Solver.Service -> Service
-initService loggingService solverService =
-  Service
-    { loggingService
-    , solveDeps = Solver.run solverService
-    }
+instance
+  ( IsService opts Logging.Service
+  , IsService opts Solver.Service
+  ) => IsService opts Service
+where
+  initService = do
+    loggingService <- loadService
+    solverService <- loadService
+    let solveDeps = Solver.run solverService
+    pure Service{..}
 
 {----- Options -----}
 

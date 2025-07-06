@@ -39,15 +39,14 @@ data Options = Options
   { logLevel :: LogLevel
   }
 
-initService :: Options -> Service
-initService opts =
-  Service
-    { options = opts
-    , doLog = \level msg ->
-        if level >= logLevel opts
-          then Text.putStrLn $ "[" <> displayLevel level <> "] " <> msg
-          else pure ()
-    }
+instance Has Options opts => IsService opts Service where
+  initService = do
+    options <- getOpts
+    let doLog level msg =
+          if level >= logLevel options
+            then Text.putStrLn $ "[" <> displayLevel level <> "] " <> msg
+            else pure ()
+    pure Service{..}
 
 disabledService :: Service
 disabledService =

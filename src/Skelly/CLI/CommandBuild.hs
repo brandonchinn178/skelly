@@ -8,7 +8,7 @@ import Skelly.CLI.Service qualified as CLI
 import Skelly.Core.Build qualified as Build
 import Skelly.Core.Solver qualified as Solver
 
-commandBuild :: Command
+commandBuild :: Command '[BaseOptions]
 commandBuild =
   Command
     { cmdName = "build"

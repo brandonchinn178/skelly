@@ -28,7 +28,7 @@ import Skelly.Core.Types.Version (
  )
 import UnliftIO.Exception (throwIO)
 
-commandAdd :: Command
+commandAdd :: Command '[BaseOptions]
 commandAdd =
   Command
     { cmdName = "add"

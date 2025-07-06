@@ -7,7 +7,7 @@ import Skelly.CLI.Service qualified as CLI
 import Skelly.Core.Lock qualified as Lock
 import Skelly.Core.Solver qualified as Solver
 
-commandLock :: Command
+commandLock :: Command '[BaseOptions]
 commandLock =
   Command
     { cmdName = "lock"

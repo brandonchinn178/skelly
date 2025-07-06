@@ -6,32 +6,40 @@ module Skelly.CLI.Service (
   initService,
 ) where
 
+import Data.Type.Map (Map)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Utils.Hackage qualified as Hackage
 import Skelly.Core.Utils.HTTP qualified as HTTP
 
--- | The base service passed to all commands.
---
--- Contains common, frequently used services. Keep the fields ordered
--- by their dependencies; i.e. a service should only depend on services
--- above it.
-data Service = Service
-  { loggingService :: Logging.Service
-  , httpService :: HTTP.Service
-  , hackageService :: Hackage.Service
-  , packageIndexService :: PackageIndex.Service
-  }
+-- TODO: Move to Skelly.Core.Service
+class IsService opts a where
+  initService :: RegistryM opts a
 
-data Options = Options
-  { logOptions :: Logging.Options
-  }
+newtype RegistryM opts a = RegistryM
+  { unRegistryM :: ReaderT (HList opts) (StateT Registry IO) a
+  } deriving (Functor, Applicative, Monad, MonadIO)
 
-initService :: Options -> IO Service
-initService Options{..} = do
-  let loggingService = Logging.initService logOptions
-  httpService <- HTTP.initService
-  let hackageService = Hackage.initService loggingService httpService
-  -- TODO: allow user to configure the index provider + hackage opts
-  let packageIndexService = PackageIndex.initServiceHackage hackageService PackageIndex.defaultHackageOptions
-  pure Service{..}
+type Registry = Map TypeRep Dynamic
+
+runRegistry :: HList opts -> RegistryM opts a -> IO a
+runRegistry opts =
+  id
+    . (`runReaderT` opts)
+    . (`execStateT` Map.empty)
+    . unRegistryM
+
+type Has opts allOpts = HOccurs opts (HList allOpts)
+
+getOpts :: Has opts allOpts => RegistryM allOpts opts
+getOpts = RegistryM $ asks hOccurs
+
+loadService :: (Typeable a, IsService opts a) => RegistryM opts a
+loadService = do
+  registry <- RegistryM . lift $ get
+  case Map.lookup (typeRep @a) registry of
+    Just a -> pure a
+    Nothing -> do
+      a <- initService
+      RegistryM . lift $ modify (Map.insert (typeRep @a) a)
+      pure a
