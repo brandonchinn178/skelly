@@ -25,7 +25,7 @@ module Skelly.Core.Utils.Hackage (
 
   -- * Methods
   withRepo,
-  withBootstrappedRepo,
+  withRepoNoBootstrap,
   runBootstrap,
   updateMetadata,
   downloadPackageTarGz,
@@ -44,12 +44,13 @@ module Skelly.Core.Utils.Hackage (
   Hackage.withIndex,
 ) where
 
-import Control.Exception (Exception)
+import Control.Monad (when)
 import Data.ByteString.Char8 qualified as Char8
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (getCurrentTime)
+import Data.Text.IO qualified as Text
+import Data.Time (NominalDiffTime, addUTCTime, getCurrentTime)
 import Hackage.Security.Client qualified as Hackage
 import Hackage.Security.Client.Repository qualified as Hackage
 import Hackage.Security.Client.Repository.Cache qualified as Cache
@@ -58,7 +59,6 @@ import Hackage.Security.Client.Repository.HttpLib qualified as HttpLib
 import Hackage.Security.Client.Repository.Remote qualified as Hackage (RemoteTemp)
 import Hackage.Security.Client.Repository.Remote qualified as RemoteRepo
 import Hackage.Security.Util.Checked (Throws, handleChecked, throwChecked)
-import Hackage.Security.Util.Path (fromAbsoluteFilePath, (</>))
 import Hackage.Security.Util.Path qualified as Path
 import Hackage.Security.Util.Pretty qualified as Pretty
 import Hackage.Security.Util.Some (Some (..))
@@ -66,14 +66,15 @@ import Network.URI (URI)
 import Network.URI qualified as URI
 import Network.URI.Static qualified as URI
 import Skelly.Core.Error (SkellyError (..), SomeHackageError (..))
-import Skelly.Core.Logging (LogLevel (..), logAt, logDebug)
+import Skelly.Core.Logging (LogLevel (..), logAt, logDebug, logWarn)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.Types.PackageId (PackageId (..))
 import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.HTTP qualified as HTTP
-import System.FilePath (takeDirectory)
+import System.FilePath (takeDirectory, (</>))
+import Text.Read (readMaybe)
 import UnliftIO.Directory (createDirectoryIfMissing)
-import UnliftIO.Exception (handle, throwIO)
+import UnliftIO.Exception (Exception, catchAny, displayException, handle, throwIO, tryAny)
 
 {----- Service -----}
 
@@ -126,7 +127,7 @@ type Repository = Hackage.Repository Hackage.RemoteTemp
 -- | Provide a Repository
 withRepo :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
 withRepo service@Service{..} opts f = wrapHackageErrors $
-  withBootstrappedRepo service opts $ \repo -> do
+  withRepoNoBootstrap service opts $ \repo -> do
     -- Initialize Hackage repo if running for the first time
     Hackage.requiresBootstrap repo >>= \case
       False -> pure ()
@@ -136,16 +137,21 @@ withRepo service@Service{..} opts f = wrapHackageErrors $
         -- their own keys, or if user is using their own Hackage server
         runBootstrap opts repo
 
-        -- FIXME: update repo if older than 1 day
         logDebug loggingService "Download Hackage repo for the first time"
         updateMetadata repo
 
+    whenMetadataExpired repo $ do
+      updateMetadata repo `catchAny` \e -> do
+        logWarn loggingService "Failed to update Hackage metadata, run `skelly cache update` manually."
+        logDebug loggingService $ (Text.pack . displayException) e
+
     f repo
 
--- | Same as 'withRepo', but assumes the repo has already been bootstrapped. Operations
--- will fail if this is not the case.
-withBootstrappedRepo :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
-withBootstrappedRepo Service{..} RepoOptions{..} =
+-- | Same as 'withRepo', but without running any bootstrapping steps.
+--
+-- Operations will fail if bootstrapping has not been done, so prefer 'withRepo'.
+withRepoNoBootstrap :: Service -> RepoOptions -> (Repository -> IO a) -> IO a
+withRepoNoBootstrap Service{..} RepoOptions{..} =
   RemoteRepo.withRepository
     httpLib
     [hackageURI]
@@ -158,7 +164,7 @@ withBootstrappedRepo Service{..} RepoOptions{..} =
     hackageHost = URI.uriRegName . fromMaybe URI.nullURIAuth . URI.uriAuthority $ hackageURI
     hackageCache =
       Cache.Cache
-        { cacheRoot = fromAbsoluteFilePath hackageCacheRoot </> Path.fragment hackageHost
+        { cacheRoot = Path.fromAbsoluteFilePath hackageCacheRoot Path.</> Path.fragment hackageHost
         , cacheLayout =
             Hackage.CacheLayout
               { cacheLayoutRoot = relPath "root.json"
@@ -186,6 +192,26 @@ updateMetadata repo = wrapHackageErrors $ do
   now <- getCurrentTime
   _ <- Hackage.checkForUpdates repo (Just now)
   pure ()
+
+whenMetadataExpired :: Repository -> IO () -> IO ()
+whenMetadataExpired repo action = do
+  root <- getRepoRoot repo
+  let metadataLastCheck = root </> "skelly-metadata-last-check"
+
+  now <- getCurrentTime
+  expired <- isExpired metadataLastCheck now
+  when expired $ do
+    action
+    Text.writeFile metadataLastCheck (Text.pack $ show now)
+  where
+    expiry = 3600 * 24 :: NominalDiffTime -- update metadata once per day
+    isExpired metadataLastCheck now =
+      tryAny (Text.readFile metadataLastCheck) >>= \case
+        Right content
+          | Just lastCheck <- readMaybe $ Text.unpack content
+          , lastCheck > addUTCTime (-1 * expiry) now ->
+              pure False
+        _ -> pure True
 
 downloadPackageTarGz :: Repository -> PackageId -> FilePath -> IO ()
 downloadPackageTarGz repo packageId dest = wrapHackageErrors $ do
