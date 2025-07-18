@@ -1,6 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 module Skelly.Core.Lock (
   -- * Service
@@ -31,6 +36,7 @@ import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig, loadPackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.Paths (skellyLockFile)
+import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageId (..), PackageName)
 import Skelly.Core.Types.Version (CompiledVersionRange, compileRange, intersectRange, makeVersion)
@@ -44,12 +50,15 @@ data Service = Service
   , solveDeps :: CompilerEnv -> Map PackageName CompiledVersionRange -> IO [Solver.SolvedPackage]
   }
 
-initService :: Logging.Service -> Solver.Service -> Service
-initService loggingService solverService =
-  Service
-    { loggingService
-    , solveDeps = Solver.run solverService
-    }
+instance
+  ( IsService opts Logging.Service
+  , IsService opts Solver.Service
+  ) => IsService opts Service where
+  initService = do
+    loggingService <- loadService
+    solverService <- loadService
+    let solveDeps = Solver.run solverService
+    pure Service{..}
 
 {----- Options -----}
 

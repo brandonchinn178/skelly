@@ -1,16 +1,26 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Skelly.CLI.CommandRun (commandRun) where
 
 import Skelly.CLI.Command
-import Skelly.CLI.Service qualified as CLI
+import Skelly.CLI.CommandBase
+import Skelly.Core.Service (IsService (..))
 
-commandRun :: Command
+commandRun :: CommandSpec '[BaseOptions]
 commandRun =
-  Command
+  CommandSpec
     { cmdName = "run"
     , cmdDesc = "Run an executable"
-    , cmdParse = pure ()
-    , cmdExec = execute
+    , cmdImpl = execute
+    , cmdOptions = pure ()
     }
 
-execute :: CLI.Service -> () -> IO ()
+data Service = Service
+
+instance IsService opts Service where
+  initService = pure Service
+
+execute :: Service -> () -> IO ()
 execute _ () = putStrLn "TODO: run"

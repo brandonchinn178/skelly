@@ -1,4 +1,7 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,6 +9,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 {- |
 This module contains the dependency resolution solver.
@@ -57,6 +62,7 @@ import Skelly.Core.Error (
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageIndex qualified as PackageIndex
+import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.Types.PackageId (
   PackageId (..),
   PackageName,
@@ -88,15 +94,22 @@ data Service = Service
     rankPackage :: PackageName -> Int
   }
 
-initService :: Logging.Service -> PackageIndex.Service -> Service
-initService loggingService pkgIndexService =
-  Service
-    { loggingService
-    , withCursor = PackageIndex.withCursor pkgIndexService
-    , getPackageDeps = \cursor -> fmap PackageIndex.packageDependencies . PackageIndex.getPackageInfo cursor
-    , getPackageVersionInfo = PackageIndex.getPackageVersionInfo
-    , rankPackage = rankPackageDefault
-    }
+instance
+  ( IsService opts Logging.Service
+  , IsService opts PackageIndex.Service
+  ) =>
+  IsService opts Service where
+  initService = do
+    loggingService <- loadService
+    pkgIndexService <- loadService
+    pure
+      Service
+        { loggingService
+        , withCursor = PackageIndex.withCursor pkgIndexService
+        , getPackageDeps = \cursor -> fmap PackageIndex.packageDependencies . PackageIndex.getPackageInfo cursor
+        , getPackageVersionInfo = PackageIndex.getPackageVersionInfo
+        , rankPackage = rankPackageDefault
+        }
 
 data SolvedPackage = SolvedPackage
   { packageId :: PackageId

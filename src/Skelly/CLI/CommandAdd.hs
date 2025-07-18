@@ -1,14 +1,21 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 module Skelly.CLI.CommandAdd (commandAdd) where
 
 import Data.Text qualified as Text
-import Options.Applicative
+import Options.Applicative qualified as Opt
 import Skelly.CLI.Command
-import Skelly.CLI.Service qualified as CLI
+import Skelly.CLI.CommandBase
+import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging (logDebug)
@@ -28,37 +35,41 @@ import Skelly.Core.Types.Version (
  )
 import UnliftIO.Exception (throwIO)
 
-commandAdd :: Command
+commandAdd :: CommandSpec '[BaseOptions]
 commandAdd =
-  Command
+  CommandSpec
     { cmdName = "add"
     , cmdDesc = "Add dependencies to hspackage.toml"
-    , cmdParse =
+    , cmdImpl = run
+    , cmdOptions =
         pure Options
           <*> depsParser
-    , cmdExec = execute
     }
   where
     depsParser =
-      many . argument parseDepArg . mconcat $
-        [ metavar "DEP"
-        , help "A dependency, optionally in the form of 'name@versionRange'"
+      Opt.many . Opt.argument parseDepArg . mconcat $
+        [ Opt.metavar "DEP"
+        , Opt.help "A dependency, optionally in the form of 'name@versionRange'"
         ]
 
     parseDepArg = do
-      arg <- str
+      arg <- Opt.str
       case Text.splitOn "@" arg of
         [name] -> pure (name, Nothing)
         [name, rangeStr] ->
           case parseVersionRange rangeStr of
             Just range -> pure (name, Just range)
-            Nothing -> readerError $ Text.unpack $ "Range specified with invalid format: " <> rangeStr
-        _ -> readerError $ Text.unpack $ "Dependency specified with invalid format: " <> arg
+            Nothing -> Opt.readerError $ Text.unpack $ "Range specified with invalid format: " <> rangeStr
+        _ -> Opt.readerError $ Text.unpack $ "Dependency specified with invalid format: " <> arg
 
-execute :: CLI.Service -> Options -> IO ()
-execute CLI.Service{..} = run service
-  where
-    service =
+instance
+  ( IsService opts Logging.Service
+  , IsService opts PackageIndex.Service
+  ) => IsService opts Service where
+  initService = do
+    loggingService <- loadService
+    packageIndexService <- loadService
+    pure
       Service
         { loggingService
         , loadPackageConfig = PackageConfig.loadPackageConfig loggingService

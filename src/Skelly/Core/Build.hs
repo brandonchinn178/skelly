@@ -1,13 +1,17 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 module Skelly.Core.Build (
   -- * Service
   Service (..),
-  initService,
 
   -- * Methods
   run,
@@ -36,7 +40,8 @@ import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
 -- import Skelly.Core.Parse (parseImports)
 import Skelly.Core.Paths (packageDistDir, skellyCacheDir)
-import Skelly.Core.Solver qualified as Solver
+import Skelly.Core.Service (IsService (..), loadService)
+-- import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Types.PackageId qualified as PackageId
 import Skelly.Core.Types.Version (
@@ -69,15 +74,22 @@ data Service = Service
   , loadCompilerEnv :: Version -> IO CompilerEnv
   }
 
-initService :: Logging.Service -> PackageIndex.Service -> Solver.Service -> Service
-initService loggingService pkgIndexService _ =
-  Service
-    { loggingService
-    -- , solveDeps = Solver.run solverService
-    , pkgIndexService
-    , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
-    , loadCompilerEnv = CompilerEnv.loadCompilerEnv
-    }
+instance
+  ( IsService opts Logging.Service
+  , IsService opts PackageIndex.Service
+  ) => IsService opts Service where
+  initService = do
+    loggingService <- loadService
+    pkgIndexService <- loadService
+    -- solverService <- loadService
+    pure
+      Service
+        { loggingService
+        -- , solveDeps = Solver.run solverService
+        , pkgIndexService
+        , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
+        , loadCompilerEnv = CompilerEnv.loadCompilerEnv
+        }
 
 {----- Options -----}
 

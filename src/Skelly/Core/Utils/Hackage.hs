@@ -1,11 +1,15 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 {- |
 Utilities for querying Hackage, or a server running a Hackage mirror.
@@ -15,7 +19,6 @@ Fundamentally a wrapper around the hackage-security package.
 module Skelly.Core.Utils.Hackage (
   -- * Service
   Service (..),
-  initService,
 
   -- * RepoOptions
   RepoOptions (..),
@@ -68,6 +71,7 @@ import Network.URI.Static qualified as URI
 import Skelly.Core.Error (SkellyError (..), SomeHackageError (..))
 import Skelly.Core.Logging (LogLevel (..), logAt, logDebug, logWarn)
 import Skelly.Core.Logging qualified as Logging
+import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.Types.PackageId (PackageId (..))
 import Skelly.Core.Utils.Cabal qualified as Cabal
 import Skelly.Core.Utils.HTTP qualified as HTTP
@@ -83,10 +87,14 @@ data Service = Service
   , httpLib :: HttpLib
   }
 
-initService :: Logging.Service -> HTTP.Service -> Service
-initService loggingService httpService = Service{..}
-  where
-    httpLib = mkHttpLib httpService
+instance
+  ( IsService opts Logging.Service
+  , IsService opts HTTP.Service
+  ) => IsService opts Service where
+  initService = do
+    loggingService <- loadService
+    httpLib <- mkHttpLib <$> loadService
+    pure Service{..}
 
 {----- Repository options -----}
 
