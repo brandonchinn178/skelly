@@ -4,11 +4,11 @@ module Skelly.CLI.CommandBuild (commandBuild) where
 
 import Options.Applicative
 import Skelly.CLI.Command
-import Skelly.CLI.Service qualified as CLI
+import Skelly.CLI.CommandBase (BaseOptions)
 import Skelly.Core.Build qualified as Build
 import Skelly.Core.Solver qualified as Solver
 
-commandBuild :: Command
+commandBuild :: Command '[BaseOptions]
 commandBuild =
   Command
     { cmdName = "build"
@@ -34,12 +34,9 @@ commandBuild =
           ]
         ]
 
-execute :: CLI.Service -> Build.Options -> IO ()
-execute CLI.Service{..} = Build.run service . resolveOpts
+execute :: Build.Service -> Build.Options -> IO ()
+execute service = Build.run service . resolveOpts
   where
-    solverService = Solver.initService loggingService packageIndexService
-    service = Build.initService loggingService packageIndexService solverService
-
     resolveOpts = resolveTargets
 
     -- If no targets specified, build all libs + bins

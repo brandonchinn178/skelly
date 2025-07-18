@@ -8,6 +8,7 @@ module Skelly.CLI.CommandAdd (commandAdd) where
 import Data.Text qualified as Text
 import Options.Applicative
 import Skelly.CLI.Command
+import Skelly.CLI.CommandBase
 import Skelly.CLI.Service qualified as CLI
 import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
 import Skelly.Core.Error (SkellyError (..))
@@ -28,7 +29,7 @@ import Skelly.Core.Types.Version (
  )
 import UnliftIO.Exception (throwIO)
 
-commandAdd :: Command
+commandAdd :: Command '[BaseOptions]
 commandAdd =
   Command
     { cmdName = "add"
