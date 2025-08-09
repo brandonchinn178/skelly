@@ -22,7 +22,7 @@ import Crypto.Hash qualified as Crypto
 import Data.ByteString qualified as ByteString
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
+import Skelly.Core.CompilerEnv (loadCompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Lock.LockFile (
@@ -33,13 +33,14 @@ import Skelly.Core.Lock.LockFile (
  )
 import Skelly.Core.Lock.LockFile qualified as LockFile
 import Skelly.Core.Logging qualified as Logging
-import Skelly.Core.PackageConfig (PackageConfig, loadPackageConfig)
+import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.Paths (skellyLockFile)
 import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageId (..), PackageName)
 import Skelly.Core.Types.Version (CompiledVersionRange, compileRange, intersectRange, makeVersion)
+import Skelly.Core.WorkspaceConfig qualified as WorkspaceConfig
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Directory (doesFileExist, getCurrentDirectory)
@@ -47,7 +48,7 @@ import UnliftIO.Exception (fromEither, throwIO)
 
 data Service = Service
   { loggingService :: Logging.Service
-  , solveDeps :: CompilerEnv -> Map PackageName CompiledVersionRange -> IO [Solver.SolvedPackage]
+  , solveDeps :: Solver.Env -> Map PackageName CompiledVersionRange -> IO [Solver.SolvedPackage]
   }
 
 instance
@@ -70,11 +71,18 @@ data Options = Options
 
 run :: Service -> Options -> IO ()
 run service@Service{..} _ = do
-  config <- loadPackageConfig loggingService
+  workspaceConfig <- WorkspaceConfig.load loggingService
+
+  config <- PackageConfig.load loggingService
   packages <- fromEither $ Map.fromList <$> mapM toPackageInfo [config] -- TODO: load all configs in workspace
 
   let ghcVersion = makeVersion [9, 10, 1] -- TODO: decide version from hspackage.toml
-  env <- loadCompilerEnv ghcVersion
+  compilerEnv <- loadCompilerEnv ghcVersion
+  let env =
+        Solver.Env
+          { compilerEnv
+          , packageFlags = WorkspaceConfig.packageFlags workspaceConfig
+          }
 
   lockExists <- doesFileExist lockFilePath
   status <-
@@ -114,7 +122,7 @@ toPackageInfo config = do
 
 updateLockFile ::
   Service ->
-  CompilerEnv ->
+  Solver.Env ->
   Maybe LockFile ->
   Map PackageName LockFilePackageInfo ->
   IO LockFile
@@ -133,11 +141,13 @@ updateLockFile Service{..} env _ packages = do
 
   pure
     LockFile.LockFile
-      { ghcVersion = CompilerEnv.ghcVersion env
+      { ghcVersion = CompilerEnv.ghcVersion compilerEnv
       , packages
       , dependencies = Map.fromList dependencies
       }
   where
+    Solver.Env{compilerEnv} = env
+
     mergeDeps =
       maybe (throwIO DependencyResolutionFailure) pure
         . unionsWithM intersectRange

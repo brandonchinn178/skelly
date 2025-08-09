@@ -19,7 +19,7 @@ module Skelly.Core.PackageIndex.Interface (
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Types.PackageId (PackageId, PackageName)
 import Skelly.Core.Types.Version (Version, CompiledVersionRange)
-import Skelly.Core.Utils.Cabal (PackageInfo (..))
+import Skelly.Core.Utils.Cabal (FlagAssignment, PackageInfo (..))
 import UnliftIO.Exception (throwIO)
 
 data Service = Service
@@ -47,7 +47,7 @@ data PackageIndex = PackageIndex
 
 data PackageIndexCursor = PackageIndexCursor
   { lookupPackageVersionInfo :: PackageName -> IO (Maybe PackageVersionInfo)
-  , lookupPackageInfo :: PackageId -> IO (Maybe PackageInfo)
+  , lookupPackageInfo :: FlagAssignment -> PackageId -> IO (Maybe PackageInfo)
   }
 
 data PackageVersionInfo = PackageVersionInfo
@@ -62,6 +62,6 @@ getPackageVersionInfo :: PackageIndexCursor -> PackageName -> IO PackageVersionI
 getPackageVersionInfo PackageIndexCursor{..} package =
   lookupPackageVersionInfo package >>= maybe (throwIO $ UnknownPackage package) pure
 
-getPackageInfo :: PackageIndexCursor -> PackageId -> IO PackageInfo
-getPackageInfo PackageIndexCursor{..} packageId =
-  lookupPackageInfo packageId >>= maybe (throwIO $ PackageIdNotFound packageId) pure
+getPackageInfo :: PackageIndexCursor -> FlagAssignment -> PackageId -> IO PackageInfo
+getPackageInfo PackageIndexCursor{..} flags packageId =
+  lookupPackageInfo flags packageId >>= maybe (throwIO $ PackageIdNotFound packageId) pure

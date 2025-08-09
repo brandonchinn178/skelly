@@ -26,7 +26,7 @@ import Skelly.Core.Types.Version (
  )
 
 data SkellyError
-  = NoPackageConfig [FilePath]
+  = NoConfig FilePath [FilePath]
   | ExecutableNotFound Text
   | SomeHackageError SomeHackageError
   | UnknownPackage PackageName
@@ -51,9 +51,9 @@ instance Eq SomeHackageError where
 
 renderSkellyError :: SkellyError -> Text
 renderSkellyError = \case
-  NoPackageConfig locs ->
+  NoConfig configName locs ->
     Text.unlines $
-      "Could not find hspackage.toml in any of the following locations:"
+      ("Could not find " <> Text.pack configName <> " in any of the following locations:")
         : ["  - " <> Text.pack loc | loc <- locs]
   ExecutableNotFound exe ->
     "Could not find executable: " <> exe

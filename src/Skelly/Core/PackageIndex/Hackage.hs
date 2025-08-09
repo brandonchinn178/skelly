@@ -109,14 +109,14 @@ initPackageIndexCursor repo callbacks = do
                   { availableVersions = fromMaybe [] mAvailableVersions
                   , preferredVersionRange = fromMaybe wholeRange mPreferredVersionRange
                   }
-      , lookupPackageInfo = \packageId@PackageId{..} ->
+      , lookupPackageInfo = \flags packageId@PackageId{..} ->
           case Map.lookup packageName (packagePtrs ptrs) >>= Map.lookup packageVersion of
             Nothing -> pure Nothing
             Just ptr -> fmap Just $ do
               let Hackage.IndexCallbacks{indexLookupFileEntry} = callbacks
               Hackage.IndexEntry{indexEntryContent} <-
                 indexLookupFileEntry ptr (Hackage.IndexPkgCabal $ Cabal.toPackageIdentifier packageId)
-              either throwIO pure $ Cabal.parseCabalFile packageId (ByteStringL.toStrict indexEntryContent)
+              either throwIO pure $ Cabal.parseCabalFile flags packageId (ByteStringL.toStrict indexEntryContent)
       }
 
 {----- IndexPtrs -----}

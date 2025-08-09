@@ -87,7 +87,7 @@ instance
         { loggingService
         -- , solveDeps = Solver.run solverService
         , pkgIndexService
-        , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
+        , loadPackageConfig = PackageConfig.load loggingService
         , loadCompilerEnv = CompilerEnv.loadCompilerEnv
         }
 
@@ -251,7 +251,7 @@ data DepInfo = DepInfo
 
 downloadDep :: PackageIndex.PackageIndex -> PackageIndex.PackageIndexCursor -> PackageId -> IO DepInfo
 downloadDep index cursor pkgId = do
-  pkgInfo <- PackageIndex.getPackageInfo cursor pkgId
+  pkgInfo <- PackageIndex.getPackageInfo cursor [] pkgId
   let srcDirs = map (dest </>) $ PackageIndex.packageSrcDirs pkgInfo
 
   exists <- doesDirectoryExist dest

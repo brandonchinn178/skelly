@@ -24,6 +24,7 @@ References:
 module Skelly.Core.Solver (
   Service (..),
   initService,
+  Env (..),
   SolvedPackage (..),
   run,
 
@@ -79,6 +80,8 @@ import Skelly.Core.Types.Version (
   prettyCompiledRange,
   singletonRange,
  )
+import Skelly.Core.Utils.Cabal (FlagAssignment)
+import Skelly.Core.WorkspaceConfig (PackageFlags)
 import UnliftIO.MVar (MVar, newMVar, modifyMVar)
 import UnliftIO.Exception (throwIO)
 
@@ -88,7 +91,7 @@ type PackageDeps = Map PackageName CompiledVersionRange
 data Service = Service
   { loggingService :: Logging.Service
   , withCursor :: forall a. (PackageIndex.PackageIndexCursor -> IO a) -> IO a
-  , getPackageDeps :: PackageIndex.PackageIndexCursor -> PackageId -> IO RawPackageDeps
+  , getPackageDeps :: PackageIndex.PackageIndexCursor -> FlagAssignment -> PackageId -> IO RawPackageDeps
   , getPackageVersionInfo :: PackageIndex.PackageIndexCursor -> PackageName -> IO PackageIndex.PackageVersionInfo
   , -- | Rank package, where higher is better.
     rankPackage :: PackageName -> Int
@@ -106,10 +109,15 @@ instance
       Service
         { loggingService
         , withCursor = PackageIndex.withCursor pkgIndexService
-        , getPackageDeps = \cursor -> fmap PackageIndex.packageDependencies . PackageIndex.getPackageInfo cursor
+        , getPackageDeps = \flags cursor -> fmap PackageIndex.packageDependencies . PackageIndex.getPackageInfo flags cursor
         , getPackageVersionInfo = PackageIndex.getPackageVersionInfo
         , rankPackage = rankPackageDefault
         }
+
+data Env = Env
+  { compilerEnv :: CompilerEnv
+  , packageFlags :: PackageFlags
+  }
 
 data SolvedPackage = SolvedPackage
   { packageId :: PackageId
@@ -118,24 +126,28 @@ data SolvedPackage = SolvedPackage
 
 -- | Get the list of transitive dependencies in topological order, where
 -- packages may not depend on any packages later in the list.
-run :: Service -> CompilerEnv -> PackageDeps -> IO [SolvedPackage]
-run service@Service{..} env initialDeps =
+run :: Service -> Env -> PackageDeps -> IO [SolvedPackage]
+run service@Service{..} env@Env{..} initialDeps =
   withCursor $ \cursor -> do
-    packageCache <- initPackageCache (getPackageVersionInfo cursor) (getPackageDeps cursor)
+    packageCache <- initPackageCache (getPackageVersionInfo cursor) (getPackageDeps' cursor)
     runValidateT (runSolver service env packageCache initialDeps) >>= \case
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
+  where
+    getPackageDeps' cursor packageId@PackageId{packageName} = do
+      let flags = Map.findWithDefault [] packageName packageFlags
+      getPackageDeps cursor flags packageId
 
 type ConflictSet = Set PackageName
 type PackageQueue = HashPSQ PackageName Int ()
 
 runSolver ::
   Service
-  -> CompilerEnv
+  -> Env
   -> PackageCache
   -> PackageDeps
   -> ValidateT ConflictSet IO [SolvedPackage]
-runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (insertAll deps0 HashPSQ.empty)
+runSolver Service{..} Env{..} packageCache deps0 = resolve (toPackageMap deps0) (insertAll deps0 HashPSQ.empty)
   where
     insertAll deps queue =
       List.foldl'
@@ -181,7 +193,7 @@ runSolver Service{..} env packageCache deps0 = resolve (toPackageMap deps0) (ins
               -- TODO: this can happen if someone puts "> 100" in hspackage.toml
               _ -> error $ "Unexpectedly failed to find any versions in range for " <> show pkgName
           versions -> do
-            pure $ sortVersions env pkgName preferredVersionRange versions
+            pure $ sortVersions compilerEnv pkgName preferredVersionRange versions
 
       withBacktracking pkgName . flip map versions $ \pkgVer -> do
         let pkgId = PackageId pkgName pkgVer
@@ -243,7 +255,7 @@ sortVersions ::
   -> CompiledVersionRange
   -> [Version]
   -> [Version]
-sortVersions env pkgName preferredVersionRange =
+sortVersions compilerEnv pkgName preferredVersionRange =
   List.sortOn $ \version -> (toVersionType version, Down version)
   where
     toVersionType :: Version -> Int
@@ -252,7 +264,7 @@ sortVersions env pkgName preferredVersionRange =
       | inRange preferredVersionRange version = 2
       | otherwise = 100
 
-    installedVersion = Map.lookup pkgName (CompilerEnv.ghcPkgList env)
+    installedVersion = Map.lookup pkgName (CompilerEnv.ghcPkgList compilerEnv)
 
 -- | Rank the given package, where a higher rank means the package gets solved
 -- earlier.

@@ -6,6 +6,7 @@ module Skelly.Core.Utils.Cabal (
 
   -- * Package info
   PackageInfo (..),
+  FlagAssignment,
   parseCabalFile,
 
   -- * Package names
@@ -70,8 +71,10 @@ data PackageInfo = PackageInfo
   , packageDefaultExtensions :: [Text]
   }
 
-parseCabalFile :: PackageId -> ByteString -> Either SkellyError PackageInfo
-parseCabalFile packageId input = do
+type FlagAssignment = [(Text, Bool)]
+
+parseCabalFile :: FlagAssignment -> PackageId -> ByteString -> Either SkellyError PackageInfo
+parseCabalFile flags packageId input = do
   -- ignore warnings for now
   let (_warnings, result) = Cabal.runParseResult $ Cabal.parseGenericPackageDescription input
 
@@ -107,15 +110,21 @@ parseCabalFile packageId input = do
 
     resolveConditions =
       Cabal.finalizePD
-        mempty
+        flagAssignment
         Cabal.ComponentRequestedSpec
           { testsRequested = False
           , benchmarksRequested = False
           }
-        (const True) -- FIXME: get current solver state (unix-2.8.5.1 + directory needs to set os-string to true)
+        (const True)
         platform
         compilerInfo
         []
+
+    flagAssignment =
+      Cabal.mkFlagAssignment
+        [ (Cabal.mkFlagName (Text.unpack flag), enabled)
+        | (flag, enabled) <- flags
+        ]
 
     -- TODO: read "Target platform" from `ghc --info` (store in CompilerEnv)
     platform = Cabal.buildPlatform

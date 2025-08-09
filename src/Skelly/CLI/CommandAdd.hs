@@ -72,8 +72,8 @@ instance
     pure
       Service
         { loggingService
-        , loadPackageConfig = PackageConfig.loadPackageConfig loggingService
-        , savePackageConfig = PackageConfig.savePackageConfig
+        , loadPackageConfig = PackageConfig.load loggingService
+        , savePackageConfig = PackageConfig.save
         , getPreferredVersion = \env pkgName ->
             PackageIndex.withCursor packageIndexService $ \cursor -> do
               PackageIndex.PackageVersionInfo{..} <- PackageIndex.getPackageVersionInfo cursor pkgName
