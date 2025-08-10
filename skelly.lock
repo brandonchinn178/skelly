@@ -4,38 +4,1785 @@
     "packages": {
         "skelly": {
             "dependencies": {
-                "Cabal-syntax": "< 4",
-                "aeson": "< 3",
-                "base": "< 5",
-                "bytestring": "< 1",
-                "cabal-install": "< 4",
-                "containers": "< 1",
-                "crypton": "< 2",
-                "data-interval": "< 3",
-                "directory": "< 2",
-                "file-embed": ">= 0.0.9 && < 1",
-                "filepath": "< 2",
-                "hackage-security": "< 1",
-                "http-client": "< 1",
-                "http-client-tls": "< 1",
-                "http-types": "< 1",
-                "lrucache": "< 2",
-                "megaparsec": "< 10",
-                "network-uri": "< 3",
-                "optparse-applicative": "< 1",
-                "process": "< 2",
-                "psqueues": "< 1",
-                "serialise": "< 1",
-                "tar": "< 1",
-                "text": "< 3",
-                "time": "< 2",
-                "toml-reader": "< 1",
-                "transformers": "< 1",
-                "unliftio": "< 1",
-                "zlib": "< 1"
+                "Cabal-syntax": ">= 3.14.2.0 && < 3.15",
+                "HList": ">= 0.5.4.0 && < 0.6",
+                "aeson": ">= 2.2.3.0 && < 2.3",
+                "base": ">= 4.20.0.0 && < 4.21",
+                "bytestring": ">= 0.12.2.0 && < 0.13",
+                "cabal-install": ">= 3.14.2.0 && < 3.15",
+                "containers": ">= 0.7 && < 0.8",
+                "crypton": ">= 1.0.4 && < 1.1",
+                "data-interval": ">= 2.1.2 && < 2.2",
+                "directory": ">= 1.3.8.3 && < 1.4",
+                "file-embed": ">= 0.0.16.0 && < 0.1",
+                "filepath": ">= 1.5.2.0 && < 1.6",
+                "hackage-security": ">= 0.6.2.6 && < 0.7",
+                "http-client": ">= 0.7.18 && < 0.8",
+                "http-client-tls": ">= 0.3.6.4 && < 0.4",
+                "http-types": ">= 0.12.4 && < 0.13",
+                "lrucache": ">= 1.2.0.1 && < 1.3",
+                "megaparsec": ">= 9.7.0 && < 9.8",
+                "monad-validate": ">= 1.3.0.0 && < 1.4",
+                "network-uri": ">= 2.6.4.2 && < 2.7",
+                "optparse-applicative": ">= 0.18.1.0 && < 0.19",
+                "process": ">= 1.6.19.0 && < 1.7",
+                "psqueues": ">= 0.2.8.0 && < 0.3",
+                "serialise": ">= 0.2.6.1 && < 0.3",
+                "tar": ">= 0.6.4.0 && < 0.7",
+                "text": ">= 2.1.2 && < 2.2",
+                "time": ">= 1.12.2 && < 1.13",
+                "toml-reader": ">= 0.2.1.0 && < 0.3",
+                "transformers": ">= 0.6.1.1 && < 0.7",
+                "unliftio": ">= 0.2.25.0 && < 0.3",
+                "zlib": ">= 0.7.1.0 && < 0.8"
             }
         }
     },
     "dependencies": {
+        "Cabal": {
+            "version": "3.14.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "Cabal-syntax": ">= 3.14.2 && < 3.15",
+                "array": ">= 0.4.0.1 && < 0.6",
+                "base": ">= 4.13 && < 5",
+                "bytestring": ">= 0.10.0.0 && < 0.13",
+                "containers": ">= 0.5.0.0 && < 0.8",
+                "deepseq": ">= 1.3.0.1 && < 1.6",
+                "directory": ">= 1.2 && < 1.4",
+                "filepath": ">= 1.3.0.1 && < 1.6",
+                "mtl": ">= 2.1 && < 2.4",
+                "parsec": ">= 3.1.13.0 && < 3.2",
+                "pretty": ">= 1.1.1 && < 1.2",
+                "process": ">= 1.2.1.0 && < 1.7",
+                "time": ">= 1.4.0.1 && < 1.15",
+                "transformers": "(>= 0.3 && < 0.4) || (>= 0.4.1.0 && < 0.7)",
+                "unix": ">= 2.8.6.0 && < 2.9"
+            }
+        },
+        "Cabal-syntax": {
+            "version": "3.14.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.4.0.1 && < 0.6",
+                "base": ">= 4.13 && < 5",
+                "binary": ">= 0.7 && < 0.9",
+                "bytestring": ">= 0.10.0.0 && < 0.13",
+                "containers": ">= 0.5.0.0 && < 0.8",
+                "deepseq": ">= 1.3.0.1 && < 1.6",
+                "directory": ">= 1.2 && < 1.4",
+                "filepath": ">= 1.3.0.1 && < 1.6",
+                "mtl": ">= 2.1 && < 2.4",
+                "parsec": ">= 3.1.13.0 && < 3.2",
+                "pretty": ">= 1.1.1 && < 1.2",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0 && < 2.2)",
+                "time": ">= 1.4.0.1 && < 1.15",
+                "transformers": "(>= 0.3 && < 0.4) || (>= 0.4.1.0 && < 0.7)"
+            }
+        },
+        "HList": {
+            "version": "0.5.4.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0",
+                "base": ">= 4.6 && < 4.21",
+                "base-orphans": ">= 0",
+                "ghc-prim": ">= 0",
+                "mtl": ">= 0",
+                "profunctors": ">= 0",
+                "semigroups": ">= 0",
+                "tagged": ">= 0",
+                "template-haskell": ">= 0"
+            }
+        },
+        "HTTP": {
+            "version": "4000.4.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.3.0.2 && < 0.6",
+                "base": ">= 4.6.0.0 && < 4.22",
+                "bytestring": ">= 0.9.1.5 && < 0.13",
+                "mtl": ">= 2.0.0.0 && < 2.4",
+                "network": ">= 2.6 && < 3.3",
+                "network-uri": ">= 2.6 && < 2.7",
+                "parsec": ">= 2.0 && < 3.2",
+                "time": ">= 1.1.2.3 && < 1.15",
+                "transformers": ">= 0.2.0.0 && < 0.7"
+            }
+        },
+        "OneTuple": {
+            "version": "0.4.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 4.22",
+                "ghc-prim": ">= 0",
+                "template-haskell": ">= 0"
+            }
+        },
+        "QuickCheck": {
+            "version": "2.16.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.3 && < 5",
+                "containers": ">= 0.4.2.1",
+                "deepseq": ">= 1.1.0.0",
+                "random": ">= 1.2.0 && < 1.4",
+                "splitmix": ">= 0.1.0.2 && < 0.2",
+                "template-haskell": ">= 2.4",
+                "transformers": ">= 0.3"
+            }
+        },
+        "StateVar": {
+            "version": "1.2.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "stm": ">= 2.3.0.1 && < 2.6",
+                "transformers": ">= 0.3 && < 0.7"
+            }
+        },
+        "aeson": {
+            "version": "2.2.3.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "OneTuple": ">= 0.4.1.1 && < 0.5",
+                "QuickCheck": "(>= 2.14.3 && < 2.16) || (>= 2.16.0.0 && < 2.17)",
+                "base": ">= 4.12.0.0 && < 5",
+                "bytestring": ">= 0.10.8.2 && < 0.13",
+                "character-ps": ">= 0.1 && < 0.2",
+                "containers": ">= 0.6.0.1 && < 0.8",
+                "data-fix": ">= 0.3.2 && < 0.4",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "dlist": ">= 1.0 && < 1.1",
+                "exceptions": ">= 0.10.4 && < 0.11",
+                "generically": ">= 0.1 && < 0.2",
+                "ghc-prim": ">= 0.5.0.0 && < 0.14",
+                "hashable": "(>= 1.4.6.0 && < 1.5) || (>= 1.5.0.0 && < 1.6)",
+                "indexed-traversable": ">= 0.1.2 && < 0.2",
+                "integer-conversion": ">= 0.1 && < 0.2",
+                "integer-logarithms": ">= 1.0.3.1 && < 1.1",
+                "network-uri": ">= 2.6.4.1 && < 2.7",
+                "primitive": "(>= 0.8.0.0 && < 0.9) || (>= 0.9.0.0 && < 0.10)",
+                "scientific": ">= 0.3.7.0 && < 0.4",
+                "semialign": ">= 1.3 && < 1.4",
+                "strict": ">= 0.5 && < 0.6",
+                "tagged": ">= 0.8.7 && < 0.9",
+                "template-haskell": ">= 2.14.0.0 && < 2.24",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0 && < 2.2)",
+                "text-iso8601": ">= 0.1.1 && < 0.2",
+                "text-short": ">= 0.1.5 && < 0.2",
+                "th-abstraction": "(>= 0.5.0.0 && < 0.6) || (>= 0.6.0.0 && < 0.7) || (>= 0.7.0.0 && < 0.8)",
+                "these": ">= 1.2 && < 1.3",
+                "time": ">= 1.8.0.2 && < 1.15",
+                "time-compat": ">= 1.9.6 && < 1.10",
+                "unordered-containers": ">= 0.2.10.0 && < 0.3",
+                "uuid-types": ">= 1.0.5 && < 1.1",
+                "vector": ">= 0.13.0.0 && < 0.14",
+                "witherable": ">= 0.4.2 && < 0.6"
+            }
+        },
+        "ansi-terminal": {
+            "version": "1.1.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "ansi-terminal-types": "= 1.1.3",
+                "base": ">= 4.8.0.0 && < 5",
+                "colour": ">= 2.1.0"
+            }
+        },
+        "appar": {
+            "version": "0.1.8",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "bytestring": ">= 0"
+            }
+        },
+        "array": {
+            "version": "0.5.7.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 4.21"
+            }
+        },
+        "asn1-encoding": {
+            "version": "0.9.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "asn1-types": ">= 0.3.0 && < 0.4",
+                "base": ">= 4.7 && < 5",
+                "bytestring": ">= 0",
+                "hourglass": ">= 0.2.6"
+            }
+        },
+        "asn1-parse": {
+            "version": "0.9.5",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "asn1-encoding": ">= 0.9",
+                "asn1-types": ">= 0.3 && < 0.4",
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0"
+            }
+        },
+        "asn1-types": {
+            "version": "0.3.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0",
+                "hourglass": ">= 0",
+                "memory": ">= 0"
+            }
+        },
+        "assoc": {
+            "version": "1.1.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 4.22"
+            }
+        },
+        "async": {
+            "version": "2.2.5",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.3 && < 4.22",
+                "hashable": ">= 1.1.2.0 && < 1.6",
+                "stm": ">= 2.2 && < 2.6"
+            }
+        },
+        "base": {
+            "version": "4.20.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "ghc-internal": ">= 9.1001 && < 9.1002",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "base-orphans": {
+            "version": "0.9.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "base16-bytestring": {
+            "version": "1.0.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0.9 && < 0.13"
+            }
+        },
+        "base64-bytestring": {
+            "version": "1.2.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "bytestring": ">= 0.9 && < 0.13"
+            }
+        },
+        "basement": {
+            "version": "0.0.16",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 0",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "bifunctors": {
+            "version": "5.6.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "assoc": ">= 1.1 && < 1.2",
+                "base": ">= 4.9 && < 5",
+                "comonad": ">= 5.0.7 && < 6",
+                "containers": ">= 0.5.7.1 && < 0.9",
+                "tagged": ">= 0.8.6 && < 1",
+                "template-haskell": ">= 2.11 && < 2.24",
+                "th-abstraction": ">= 0.4.2.0 && < 0.8",
+                "transformers": ">= 0.5 && < 0.7"
+            }
+        },
+        "binary": {
+            "version": "0.8.9.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0",
+                "base": ">= 4.5.0.0 && < 5",
+                "bytestring": ">= 0.10.4",
+                "containers": ">= 0"
+            }
+        },
+        "blaze-builder": {
+            "version": "0.4.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0.10.4 && < 1",
+                "deepseq": ">= 0",
+                "ghc-prim": ">= 0",
+                "text": ">= 1.1.2 && < 3"
+            }
+        },
+        "byteorder": {
+            "version": "1.0.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5"
+            }
+        },
+        "bytestring": {
+            "version": "0.12.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": "(>= 4.17.2 && < 4.18) || (>= 4.18.1 && < 5)",
+                "deepseq": ">= 0",
+                "ghc-prim": ">= 0",
+                "template-haskell": ">= 0"
+            }
+        },
+        "cabal-install": {
+            "version": "3.14.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "Cabal": ">= 3.14.2 && < 3.15",
+                "Cabal-syntax": ">= 3.14 && < 3.15",
+                "HTTP": ">= 4000.1.5 && < 4000.5",
+                "array": ">= 0.4 && < 0.6",
+                "async": ">= 2.0 && < 2.3",
+                "base": ">= 4.13 && < 4.22",
+                "base16-bytestring": ">= 0.1.1 && < 1.1",
+                "binary": ">= 0.7.3 && < 0.9",
+                "bytestring": ">= 0.10.6.0 && < 0.13",
+                "cabal-install-solver": ">= 3.14 && < 3.15",
+                "containers": ">= 0.5.6.2 && < 0.8",
+                "cryptohash-sha256": ">= 0.11 && < 0.12",
+                "directory": ">= 1.3.7.0 && < 1.4",
+                "echo": ">= 0.1.3 && < 0.2",
+                "edit-distance": ">= 0.2.2 && < 0.3",
+                "exceptions": ">= 0.10.4 && < 0.11",
+                "filepath": ">= 1.4.0.0 && < 1.6",
+                "hackage-security": ">= 0.6.2.0 && < 0.7",
+                "lukko": ">= 0.1 && < 0.2",
+                "mtl": ">= 2.0 && < 2.4",
+                "network-uri": ">= 2.6.0.2 && < 2.7",
+                "open-browser": ">= 0.2.1.0 && < 0.5",
+                "parsec": ">= 3.1.13.0 && < 3.2",
+                "pretty": ">= 1.1 && < 1.2",
+                "process": ">= 1.6.15.0 && < 1.7",
+                "random": ">= 1.2 && < 1.4",
+                "regex-base": ">= 0.94.0.0 && < 0.95",
+                "regex-posix": ">= 0.96.0.0 && < 0.97",
+                "resolv": ">= 0.1.1 && < 0.3",
+                "safe-exceptions": ">= 0.1.7.0 && < 0.2",
+                "semaphore-compat": ">= 1.0.0 && < 1.1",
+                "stm": ">= 2.0 && < 2.6",
+                "tar": ">= 0.5.0.3 && < 0.7",
+                "text": "(>= 1.2.3 && < 1.3) || (>= 2.0 && < 2.2)",
+                "time": ">= 1.5.0.1 && < 1.15",
+                "unix": "(>= 2.5 && < 2.8) || (>= 2.8.6.0 && < 2.9)",
+                "zlib": ">= 0.5.3 && < 0.8"
+            }
+        },
+        "cabal-install-solver": {
+            "version": "3.14.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "Cabal": ">= 3.14 && < 3.15",
+                "Cabal-syntax": ">= 3.14 && < 3.15",
+                "array": ">= 0.4 && < 0.6",
+                "base": ">= 4.13 && < 4.22",
+                "bytestring": ">= 0.10.6.0 && < 0.13",
+                "containers": ">= 0.5.6.2 && < 0.8",
+                "directory": ">= 1.3.7.0 && < 1.4",
+                "edit-distance": ">= 0.2.2 && < 0.3",
+                "filepath": "(>= 1.4.0.0 && < 1.5) || (>= 1.5.0.0 && < 1.6)",
+                "mtl": ">= 2.0 && < 2.4",
+                "network-uri": ">= 2.6.0.2 && < 2.7",
+                "pretty": ">= 1.1 && < 1.2",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0 && < 2.2)",
+                "transformers": ">= 0.4.2.0 && < 0.7"
+            }
+        },
+        "case-insensitive": {
+            "version": "1.2.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0.9",
+                "deepseq": ">= 1.1",
+                "hashable": ">= 1.0",
+                "text": ">= 0.3"
+            }
+        },
+        "cborg": {
+            "version": "0.2.10.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.4 && < 0.6",
+                "base": ">= 4.11 && < 4.22",
+                "bytestring": ">= 0.10.4 && < 0.13",
+                "containers": ">= 0.5 && < 0.8",
+                "deepseq": ">= 1.0 && < 1.6",
+                "ghc-bignum": ">= 1.0 && < 2.0",
+                "ghc-prim": ">= 0.3.1.0 && < 0.14",
+                "half": ">= 0.2.2.3 && < 0.4",
+                "primitive": ">= 0.5 && < 0.10",
+                "text": "(>= 1.1 && < 1.3) || (>= 2.0 && < 2.2)"
+            }
+        },
+        "cereal": {
+            "version": "0.5.8.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0",
+                "base": ">= 4.4 && < 5",
+                "bytestring": ">= 0.10.4 && < 1",
+                "containers": ">= 0",
+                "ghc-prim": ">= 0.2"
+            }
+        },
+        "character-ps": {
+            "version": "0.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5"
+            }
+        },
+        "colour": {
+            "version": "2.3.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.13 && < 5"
+            }
+        },
+        "comonad": {
+            "version": "5.0.9",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "containers": ">= 0.3 && < 0.9",
+                "distributive": ">= 0.5.2 && < 1",
+                "indexed-traversable": ">= 0.1.1 && < 0.2",
+                "tagged": ">= 0.8.6.1 && < 1",
+                "transformers": ">= 0.3 && < 0.7",
+                "transformers-compat": ">= 0.5 && < 1"
+            }
+        },
+        "containers": {
+            "version": "0.7",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.4.0.0",
+                "base": ">= 4.10 && < 5",
+                "deepseq": ">= 1.2 && < 1.6",
+                "template-haskell": ">= 0"
+            }
+        },
+        "contravariant": {
+            "version": "1.5.5",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "StateVar": ">= 1.2.1 && < 1.3",
+                "base": "< 5",
+                "transformers": ">= 0.3 && < 0.7"
+            }
+        },
+        "cookie": {
+            "version": "0.5.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "bytestring": ">= 0.10.2",
+                "data-default-class": ">= 0",
+                "deepseq": ">= 0",
+                "text": ">= 1.1",
+                "time": ">= 1.5"
+            }
+        },
+        "cryptohash-sha256": {
+            "version": "0.11.102.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.5 && < 5",
+                "bytestring": "(>= 0.9.2.0 && < 0.10) || (>= 0.10.0.0 && < 0.11) || (>= 0.11.0.0 && < 0.12) || (>= 0.12.0.2 && < 0.13)"
+            }
+        },
+        "crypton": {
+            "version": "1.0.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.13 && < 5",
+                "basement": ">= 0.0.6",
+                "bytestring": ">= 0",
+                "deepseq": ">= 0",
+                "ghc-prim": ">= 0",
+                "integer-gmp": ">= 0",
+                "memory": ">= 0.14.18"
+            }
+        },
+        "crypton-connection": {
+            "version": "0.4.5",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "crypton-socks": ">= 0.6",
+                "crypton-x509-store": ">= 1.5",
+                "crypton-x509-system": ">= 1.5",
+                "data-default": ">= 0",
+                "network": ">= 2.6.3",
+                "tls": ">= 1.7 && < 2.2"
+            }
+        },
+        "crypton-socks": {
+            "version": "0.6.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0",
+                "cereal": ">= 0.3.1",
+                "network": ">= 2.6"
+            }
+        },
+        "crypton-x509": {
+            "version": "1.7.7",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "asn1-encoding": ">= 0.9 && < 0.10",
+                "asn1-parse": ">= 0.9.3 && < 0.10",
+                "asn1-types": ">= 0.3.1 && < 0.4",
+                "base": ">= 4.7 && < 5",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "crypton": ">= 0.24",
+                "hourglass": ">= 0",
+                "memory": ">= 0",
+                "pem": ">= 0.1",
+                "transformers": ">= 0.4"
+            }
+        },
+        "crypton-x509-store": {
+            "version": "1.6.11",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "asn1-encoding": ">= 0.9 && < 0.10",
+                "asn1-types": ">= 0.3 && < 0.4",
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "crypton": ">= 0",
+                "crypton-x509": ">= 1.7.2",
+                "directory": ">= 0",
+                "filepath": ">= 0",
+                "mtl": ">= 0",
+                "pem": ">= 0.1 && < 0.3"
+            }
+        },
+        "crypton-x509-system": {
+            "version": "1.6.7",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "crypton-x509": ">= 1.6",
+                "crypton-x509-store": ">= 1.6.2",
+                "directory": ">= 0",
+                "filepath": ">= 0",
+                "mtl": ">= 0",
+                "pem": ">= 0.1 && < 0.3",
+                "process": ">= 0"
+            }
+        },
+        "crypton-x509-validation": {
+            "version": "1.6.14",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "asn1-encoding": ">= 0.9 && < 0.10",
+                "asn1-types": ">= 0.3 && < 0.4",
+                "base": ">= 3 && < 5",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "crypton": ">= 0.24",
+                "crypton-x509": ">= 1.7.5",
+                "crypton-x509-store": ">= 1.6",
+                "data-default": ">= 0",
+                "hourglass": ">= 0",
+                "iproute": ">= 1.2.2",
+                "memory": ">= 0",
+                "mtl": ">= 0",
+                "pem": ">= 0.1"
+            }
+        },
+        "data-default": {
+            "version": "0.8.0.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.8 && < 5",
+                "containers": ">= 0.1 && < 0.8"
+            }
+        },
+        "data-default-class": {
+            "version": "0.2.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "data-default": ">= 0.8 && < 0.9"
+            }
+        },
+        "data-fix": {
+            "version": "0.3.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.22",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "hashable": ">= 1.4.4.0 && < 1.6"
+            }
+        },
+        "data-interval": {
+            "version": "2.1.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.10 && < 5",
+                "containers": ">= 0.5.8 && < 0.9",
+                "deepseq": "< 1.6",
+                "extended-reals": ">= 0.2 && < 1.0",
+                "hashable": ">= 1.1.2.5 && < 1.6",
+                "lattices": ">= 2 && < 2.3"
+            }
+        },
+        "deepseq": {
+            "version": "1.5.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 4.23",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "directory": {
+            "version": "1.3.8.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.11.0 && < 4.21",
+                "filepath": ">= 1.5.0.0",
+                "os-string": ">= 2.0.0",
+                "time": ">= 1.8.0 && < 1.15",
+                "unix": ">= 2.8.0 && < 2.9"
+            }
+        },
+        "distributive": {
+            "version": "0.6.2.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "base-orphans": ">= 0.5.2 && < 1",
+                "tagged": ">= 0.7 && < 1",
+                "transformers": ">= 0.3 && < 0.7"
+            }
+        },
+        "dlist": {
+            "version": "1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "deepseq": ">= 1.1 && < 1.6"
+            }
+        },
+        "ech-config": {
+            "version": "0.0.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.7 && < 5",
+                "base16-bytestring": ">= 0",
+                "bytestring": ">= 0",
+                "filepath": ">= 0",
+                "network-byte-order": ">= 0"
+            }
+        },
+        "echo": {
+            "version": "0.1.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.3 && < 5",
+                "process": ">= 1.0.1.1 && < 1.7"
+            }
+        },
+        "ed25519": {
+            "version": "0.0.5.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "bytestring": ">= 0.9 && < 0.13",
+                "ghc-prim": ">= 0.1 && < 1"
+            }
+        },
+        "edit-distance": {
+            "version": "0.2.2.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.1",
+                "base": ">= 4.5 && < 5",
+                "containers": ">= 0.1.0.1",
+                "random": ">= 1.0"
+            }
+        },
+        "exceptions": {
+            "version": "0.10.10",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "mtl": ">= 2.2 && < 2.4",
+                "stm": ">= 2.2 && < 3",
+                "template-haskell": ">= 2.11 && < 2.25",
+                "transformers": ">= 0.5.2.0 && < 0.7"
+            }
+        },
+        "extended-reals": {
+            "version": "0.2.7.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 5",
+                "deepseq": ">= 1.3 && < 1.6",
+                "hashable": ">= 1.2 && < 1.6",
+                "template-haskell": "< 3"
+            }
+        },
+        "file-embed": {
+            "version": "0.0.16.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9.1 && < 5",
+                "bytestring": ">= 0.9.1.4",
+                "directory": ">= 1.0.0.3",
+                "filepath": ">= 0",
+                "template-haskell": ">= 0"
+            }
+        },
+        "filepath": {
+            "version": "1.5.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.21",
+                "bytestring": ">= 0.11.3.0",
+                "deepseq": ">= 0",
+                "exceptions": ">= 0",
+                "os-string": ">= 2.0.1",
+                "template-haskell": ">= 0"
+            }
+        },
+        "generically": {
+            "version": "0.1.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 4.22"
+            }
+        },
+        "ghc-bignum": {
+            "version": "1.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+            }
+        },
+        "ghc-internal": {
+            "version": "9.1001.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "ghc-bignum": ">= 1.0 && < 2.0",
+                "ghc-prim": ">= 0.11 && < 0.12",
+                "rts": ">= 1.0 && < 1.1"
+            }
+        },
+        "ghc-prim": {
+            "version": "0.11.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "rts": ">= 1.0 && < 1.1"
+            }
+        },
+        "hackage-security": {
+            "version": "0.6.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "Cabal-syntax": ">= 3.7 && < 3.18",
+                "base": ">= 4.11 && < 4.22",
+                "base16-bytestring": ">= 0.1.1 && < 1.1",
+                "base64-bytestring": ">= 1.0 && < 1.3",
+                "bytestring": ">= 0.10.8.2 && < 0.13",
+                "containers": ">= 0.5.11 && < 0.8",
+                "cryptohash-sha256": ">= 0.11 && < 0.12",
+                "directory": ">= 1.3.1.5 && < 1.4",
+                "ed25519": ">= 0.0 && < 0.1",
+                "filepath": ">= 1.4.2 && < 1.6",
+                "ghc-prim": ">= 0.5.2 && < 0.14",
+                "mtl": ">= 2.2.2 && < 2.4",
+                "network": ">= 2.6 && < 3.3",
+                "network-uri": ">= 2.6 && < 2.7",
+                "parsec": ">= 3.1.13 && < 3.2",
+                "pretty": ">= 1.0 && < 1.2",
+                "tar": ">= 0.5 && < 0.7",
+                "template-haskell": ">= 2.13 && < 2.24",
+                "time": ">= 1.8.0.2 && < 1.15",
+                "transformers": ">= 0.3 && < 0.7",
+                "zlib": ">= 0.5 && < 0.8"
+            }
+        },
+        "half": {
+            "version": "0.3.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "binary": ">= 0.5.1.0 && < 0.9",
+                "deepseq": ">= 1.4.2.0 && < 1.6",
+                "template-haskell": ">= 2.11"
+            }
+        },
+        "hashable": {
+            "version": "1.5.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.18.0.0 && < 4.22",
+                "bytestring": ">= 0.11.5.3 && < 0.13",
+                "containers": ">= 0.6.7 && < 0.8",
+                "deepseq": ">= 1.4.8.1 && < 1.6",
+                "filepath": ">= 1.4.200.1 && < 1.6",
+                "ghc-bignum": ">= 1.3 && < 1.4",
+                "ghc-prim": ">= 0",
+                "os-string": ">= 2.0.2 && < 2.1",
+                "text": ">= 2.0.2 && < 2.2"
+            }
+        },
+        "hourglass": {
+            "version": "0.2.12",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "deepseq": ">= 0"
+            }
+        },
+        "hpke": {
+            "version": "0.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.7 && < 5",
+                "base16-bytestring": ">= 0",
+                "bytestring": ">= 0",
+                "crypton": ">= 1.0.2",
+                "memory": ">= 0"
+            }
+        },
+        "http-client": {
+            "version": "0.7.19",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0",
+                "async": ">= 2.0",
+                "base": ">= 4.10 && < 5",
+                "base64-bytestring": ">= 1.0",
+                "blaze-builder": ">= 0.3",
+                "bytestring": ">= 0.10",
+                "case-insensitive": ">= 1.0",
+                "containers": ">= 0.5",
+                "cookie": ">= 0",
+                "deepseq": ">= 1.3 && < 1.6",
+                "exceptions": ">= 0.4",
+                "filepath": ">= 0",
+                "ghc-prim": ">= 0",
+                "http-types": ">= 0.8",
+                "iproute": ">= 1.7.5",
+                "mime-types": ">= 0",
+                "network": ">= 2.6",
+                "network-uri": ">= 2.6",
+                "random": ">= 0",
+                "stm": ">= 2.3",
+                "streaming-commons": ">= 0.1.0.2 && < 0.3",
+                "text": ">= 0.11",
+                "time": ">= 1.2",
+                "transformers": ">= 0"
+            }
+        },
+        "http-client-tls": {
+            "version": "0.3.6.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.10 && < 5",
+                "bytestring": ">= 0",
+                "case-insensitive": ">= 0",
+                "containers": ">= 0",
+                "crypton": ">= 0",
+                "crypton-connection": ">= 0",
+                "data-default": ">= 0",
+                "exceptions": ">= 0",
+                "http-client": ">= 0.7.11",
+                "http-types": ">= 0",
+                "memory": ">= 0",
+                "network": ">= 0",
+                "network-uri": ">= 0",
+                "text": ">= 0",
+                "tls": "(>= 1.2 && < 2.1) || >= 2.1.2",
+                "transformers": ">= 0"
+            }
+        },
+        "http-types": {
+            "version": "0.12.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.2 && < 0.6",
+                "base": ">= 4 && < 5",
+                "bytestring": ">= 0.10.4.0 && < 1.0",
+                "case-insensitive": ">= 0.2 && < 1.3",
+                "text": ">= 0.11.0.2"
+            }
+        },
+        "indexed-traversable": {
+            "version": "0.1.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.3.0.2 && < 0.6",
+                "base": ">= 4.12 && < 4.22",
+                "containers": ">= 0.6.0.1 && < 0.8",
+                "transformers": ">= 0.5.6.0 && < 0.7"
+            }
+        },
+        "indexed-traversable-instances": {
+            "version": "0.1.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "OneTuple": ">= 0.3 && < 0.5",
+                "base": ">= 4.12 && < 4.22",
+                "indexed-traversable": ">= 0.1.4 && < 0.2",
+                "tagged": ">= 0.8.6 && < 0.9",
+                "unordered-containers": ">= 0.2.8.0 && < 0.3",
+                "vector": ">= 0.13.1.0 && < 0.14"
+            }
+        },
+        "integer-conversion": {
+            "version": "0.1.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.22",
+                "bytestring": "(>= 0.10.8.1 && < 0.11) || (>= 0.11.4.0 && < 0.12) || (>= 0.12.0.2 && < 0.13)",
+                "primitive": ">= 0.9.0.0 && < 0.10",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0.1 && < 2.2)"
+            }
+        },
+        "integer-gmp": {
+            "version": "1.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.11 && < 5",
+                "ghc-bignum": ">= 0",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "integer-logarithms": {
+            "version": "1.0.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.5.3.0 && < 0.6",
+                "base": ">= 4.15 && < 4.22",
+                "ghc-bignum": ">= 1.0 && < 1.4",
+                "ghc-prim": "< 0.14"
+            }
+        },
+        "iproute": {
+            "version": "1.7.15",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "appar": ">= 0",
+                "base": ">= 4.9 && < 5",
+                "byteorder": ">= 0",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "network": ">= 0"
+            }
+        },
+        "lattices": {
+            "version": "2.2.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "QuickCheck": ">= 2.12.6.1 && < 2.17",
+                "base": ">= 4.12 && < 4.22",
+                "containers": ">= 0.5.0.0 && < 0.8",
+                "deepseq": ">= 1.3.0.0 && < 1.6",
+                "hashable": ">= 1.2.7.0 && < 1.6",
+                "integer-logarithms": ">= 1.0.3 && < 1.1",
+                "tagged": ">= 0.8.6 && < 0.9",
+                "transformers": ">= 0.3.0.0 && < 0.7",
+                "universe-base": ">= 1.1 && < 1.2",
+                "universe-reverse-instances": ">= 1.1 && < 1.2",
+                "unordered-containers": ">= 0.2.8.0 && < 0.3"
+            }
+        },
+        "lrucache": {
+            "version": "1.2.0.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "containers": ">= 0.2 && < 0.8",
+                "contravariant": ">= 0.5 && < 2"
+            }
+        },
+        "lukko": {
+            "version": "0.1.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.22"
+            }
+        },
+        "megaparsec": {
+            "version": "9.7.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.5.3 && < 0.6",
+                "base": ">= 4.15 && < 5",
+                "bytestring": ">= 0.2 && < 0.13",
+                "case-insensitive": ">= 1.2 && < 1.3",
+                "containers": ">= 0.5 && < 0.8",
+                "deepseq": ">= 1.3 && < 1.6",
+                "mtl": ">= 2.2.2 && < 3",
+                "parser-combinators": ">= 1.0 && < 2",
+                "scientific": ">= 0.3.7 && < 0.4",
+                "text": ">= 0.2 && < 2.2",
+                "transformers": ">= 0.4 && < 0.7"
+            }
+        },
+        "memory": {
+            "version": "0.18.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.13",
+                "basement": ">= 0.0.7",
+                "bytestring": ">= 0",
+                "deepseq": ">= 1.1",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "mime-types": {
+            "version": "0.1.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 5",
+                "bytestring": ">= 0",
+                "containers": ">= 0",
+                "text": ">= 0"
+            }
+        },
+        "monad-control": {
+            "version": "1.0.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.5 && < 5",
+                "stm": ">= 2.3 && < 3",
+                "transformers": ">= 0.2 && < 0.7",
+                "transformers-base": ">= 0.4.4 && < 0.5",
+                "transformers-compat": ">= 0.3 && < 0.8"
+            }
+        },
+        "monad-validate": {
+            "version": "1.3.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 5",
+                "exceptions": ">= 0.9 && < 1",
+                "monad-control": ">= 1 && < 2",
+                "mtl": ">= 0",
+                "transformers": ">= 0.5.6",
+                "transformers-base": "< 1"
+            }
+        },
+        "mtl": {
+            "version": "2.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": "(>= 4.12 && < 4.15) || (>= 4.16 && < 5)",
+                "transformers": ">= 0.5.6 && < 0.7"
+            }
+        },
+        "network": {
+            "version": "3.2.7.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0.10",
+                "deepseq": ">= 0",
+                "directory": ">= 0",
+                "stm": ">= 0"
+            }
+        },
+        "network-byte-order": {
+            "version": "0.1.7",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0"
+            }
+        },
+        "network-uri": {
+            "version": "2.6.4.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "deepseq": ">= 1.1 && < 1.6",
+                "parsec": ">= 3.1.12.0 && < 3.2",
+                "template-haskell": ">= 0",
+                "th-compat": ">= 0.1.1 && < 1.0"
+            }
+        },
+        "old-locale": {
+            "version": "1.0.0.7",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.2 && < 5"
+            }
+        },
+        "old-time": {
+            "version": "1.1.0.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.7 && < 5",
+                "old-locale": ">= 1.0 && < 1.1"
+            }
+        },
+        "open-browser": {
+            "version": "0.4.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4 && < 5",
+                "process": ">= 1.2.0.0 && < 2"
+            }
+        },
+        "optparse-applicative": {
+            "version": "0.18.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.5 && < 5",
+                "prettyprinter": ">= 1.7 && < 1.8",
+                "prettyprinter-ansi-terminal": ">= 1.1.2 && < 1.2",
+                "process": ">= 1.0 && < 1.7",
+                "text": ">= 1.2",
+                "transformers": ">= 0.2 && < 0.7",
+                "transformers-compat": ">= 0.3 && < 0.8"
+            }
+        },
+        "os-string": {
+            "version": "2.0.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.21",
+                "bytestring": ">= 0.11.3.0",
+                "deepseq": ">= 0",
+                "exceptions": ">= 0",
+                "template-haskell": ">= 0"
+            }
+        },
+        "parsec": {
+            "version": "3.1.17.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.5.1.0 && < 4.21",
+                "bytestring": ">= 0.9.2.1 && < 0.13",
+                "mtl": ">= 2.1.3.1 && < 2.4",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0 && < 2.2)"
+            }
+        },
+        "parser-combinators": {
+            "version": "1.3.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 5"
+            }
+        },
+        "pem": {
+            "version": "0.2.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 3 && < 5",
+                "basement": ">= 0",
+                "bytestring": ">= 0",
+                "memory": ">= 0"
+            }
+        },
+        "pretty": {
+            "version": "1.1.3.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.5 && < 5",
+                "deepseq": ">= 1.1",
+                "ghc-prim": ">= 0"
+            }
+        },
+        "prettyprinter": {
+            "version": "1.7.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.5 && < 5",
+                "text": ">= 1.2"
+            }
+        },
+        "prettyprinter-ansi-terminal": {
+            "version": "1.1.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "ansi-terminal": ">= 0.4.0",
+                "base": ">= 4.5 && < 5",
+                "prettyprinter": ">= 1.7.0",
+                "text": ">= 1.2"
+            }
+        },
+        "primitive": {
+            "version": "0.9.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.10 && < 4.22",
+                "deepseq": ">= 1.1 && < 1.6",
+                "template-haskell": ">= 2.11",
+                "transformers": ">= 0.5 && < 0.7"
+            }
+        },
+        "process": {
+            "version": "1.6.19.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.10 && < 4.21",
+                "deepseq": ">= 1.1 && < 1.6",
+                "directory": ">= 1.1 && < 1.4",
+                "filepath": ">= 1.2 && < 1.6",
+                "unix": ">= 2.5 && < 2.9"
+            }
+        },
+        "profunctors": {
+            "version": "5.6.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "base-orphans": ">= 0.8.4 && < 0.10",
+                "bifunctors": ">= 5.5.9 && < 6",
+                "comonad": ">= 5.0.8 && < 6",
+                "contravariant": ">= 1.5.3 && < 2",
+                "distributive": ">= 0.5.2 && < 1",
+                "tagged": ">= 0.8.6.1 && < 1",
+                "transformers": ">= 0.3 && < 0.7"
+            }
+        },
+        "psqueues": {
+            "version": "0.2.8.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.2 && < 5",
+                "deepseq": ">= 1.2 && < 1.6",
+                "hashable": ">= 1.1.2.3 && < 1.6"
+            }
+        },
+        "random": {
+            "version": "1.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0.10.4 && < 0.13",
+                "deepseq": ">= 1.1 && < 2",
+                "mtl": ">= 2.2 && < 2.4",
+                "splitmix": ">= 0.1 && < 0.2",
+                "transformers": ">= 0.4 && < 0.7"
+            }
+        },
+        "regex-base": {
+            "version": "0.94.0.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.5 && < 1",
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0.10 && < 1",
+                "containers": ">= 0.5 && < 1",
+                "text": "(>= 1.2.3 && < 1.3) || (>= 2.0 && < 3)"
+            }
+        },
+        "regex-posix": {
+            "version": "0.96.0.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.5 && < 1",
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0.10 && < 1",
+                "containers": ">= 0.5 && < 1",
+                "regex-base": ">= 0.94 && < 0.95"
+            }
+        },
+        "resolv": {
+            "version": "0.2.0.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.6 && < 5",
+                "base16-bytestring": ">= 0.1 && < 1.1",
+                "binary": ">= 0.7.3 && < 0.9",
+                "bytestring": ">= 0.10.0.0 && < 0.13",
+                "containers": ">= 0.4.2.1 && < 0.9"
+            }
+        },
+        "safe-exceptions": {
+            "version": "0.1.7.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.11 && < 5",
+                "deepseq": ">= 1.2 && < 1.6",
+                "exceptions": ">= 0.10 && < 0.11",
+                "transformers": ">= 0.2 && < 0.7"
+            }
+        },
+        "scientific": {
+            "version": "0.3.8.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.15 && < 4.22",
+                "binary": ">= 0.8.6.0 && < 0.9",
+                "bytestring": ">= 0.10.8.2 && < 0.13",
+                "containers": ">= 0.6.0.1 && < 0.8",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "hashable": ">= 1.4.4.0 && < 1.6",
+                "integer-logarithms": ">= 1.0.3.1 && < 1.1",
+                "primitive": ">= 0.9.0.0 && < 0.10",
+                "template-haskell": ">= 2.14.0.0 && < 2.24",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0 && < 2.2)"
+            }
+        },
+        "semaphore-compat": {
+            "version": "1.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.11 && < 4.22",
+                "exceptions": ">= 0.7 && < 0.11",
+                "unix": ">= 2.8.1.0 && < 2.9"
+            }
+        },
+        "semialign": {
+            "version": "1.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.22",
+                "containers": ">= 0.6.0.1 && < 0.8",
+                "hashable": ">= 1.4.4.0 && < 1.6",
+                "indexed-traversable": ">= 0.1.4 && < 0.2",
+                "indexed-traversable-instances": ">= 0.1.2 && < 0.2",
+                "semigroupoids": ">= 6.0.1 && < 6.1",
+                "tagged": ">= 0.8.8 && < 0.9",
+                "these": ">= 1.2.1 && < 1.3",
+                "transformers": ">= 0.5.6.2 && < 0.7",
+                "unordered-containers": ">= 0.2.8.0 && < 0.3",
+                "vector": ">= 0.13.0.0 && < 0.14"
+            }
+        },
+        "semigroupoids": {
+            "version": "6.0.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "base-orphans": ">= 0.8.4 && < 1",
+                "bifunctors": ">= 5.6 && < 6",
+                "comonad": ">= 5.0.8 && < 6",
+                "containers": ">= 0.6.7 && < 0.9",
+                "contravariant": ">= 1.5.3 && < 2",
+                "distributive": ">= 0.5.2 && < 1",
+                "hashable": ">= 1.2.7.0 && < 1.6",
+                "tagged": ">= 0.8.7 && < 1",
+                "template-haskell": ">= 0.2.11",
+                "transformers": ">= 0.6.1.0 && < 0.7",
+                "transformers-compat": ">= 0.6 && < 0.8",
+                "unordered-containers": ">= 0.2.8.0 && < 0.3"
+            }
+        },
+        "semigroups": {
+            "version": "0.20",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 2 && < 5"
+            }
+        },
+        "serialise": {
+            "version": "0.2.6.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.4 && < 0.6",
+                "base": ">= 4.11 && < 4.22",
+                "bytestring": ">= 0.10.4 && < 0.13",
+                "cborg": ">= 0.2 && < 0.3",
+                "containers": ">= 0.5 && < 0.8",
+                "ghc-prim": ">= 0.3.1.0 && < 0.14",
+                "half": ">= 0.2.2.3 && < 0.4",
+                "hashable": ">= 1.2 && < 2.0",
+                "primitive": ">= 0.5 && < 0.10",
+                "strict": ">= 0.4 && < 0.6",
+                "text": ">= 1.1 && < 2.2",
+                "these": ">= 1.1 && < 2.2",
+                "time": ">= 1.5 && < 1.15",
+                "unordered-containers": ">= 0.2 && < 0.3",
+                "vector": ">= 0.10 && < 0.14"
+            }
+        },
+        "splitmix": {
+            "version": "0.1.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.22",
+                "deepseq": ">= 1.4.4.0 && < 1.6"
+            }
+        },
+        "stm": {
+            "version": "2.5.3.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.3 && < 0.6",
+                "base": ">= 4.4 && < 4.22"
+            }
+        },
+        "streaming-commons": {
+            "version": "0.2.3.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0",
+                "async": ">= 0",
+                "base": ">= 4.12 && < 5",
+                "bytestring": ">= 0.10.2.0",
+                "directory": ">= 0",
+                "network": ">= 2.4.0.0",
+                "process": ">= 0",
+                "random": ">= 0",
+                "stm": ">= 0",
+                "text": "(>= 1.2 && < 1.3) || (>= 2.0 && < 2.2)",
+                "transformers": ">= 0",
+                "unix": ">= 0",
+                "zlib": ">= 0"
+            }
+        },
+        "strict": {
+            "version": "0.5.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "assoc": ">= 1.1.1 && < 1.2",
+                "base": ">= 4.12.0.0 && < 5",
+                "binary": ">= 0.8.6.0 && < 0.9",
+                "bytestring": ">= 0.10.8.2 && < 0.13",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "ghc-prim": ">= 0",
+                "hashable": ">= 1.4.7.0 && < 1.6",
+                "text": "(>= 1.2.3.1 && < 1.3) || (>= 2.0 && < 2.2)",
+                "these": ">= 1.2.1 && < 1.3",
+                "transformers": ">= 0.5.6.2 && < 0.7"
+            }
+        },
+        "tagged": {
+            "version": "0.8.9",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "deepseq": ">= 1.1 && < 1.6",
+                "template-haskell": ">= 2.11 && < 2.24",
+                "transformers": ">= 0.4.2.0 && < 0.7"
+            }
+        },
+        "tar": {
+            "version": "0.6.4.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "tar": ">= 0"
+            }
+        },
+        "template-haskell": {
+            "version": "2.22.0.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.11 && < 4.21",
+                "ghc-boot-th": "= 9.10.1",
+                "ghc-prim": ">= 0",
+                "pretty": ">= 1.1 && < 1.2"
+            }
+        },
+        "text": {
+            "version": "2.1.3",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "array": ">= 0.3 && < 0.6",
+                "base": ">= 4.11 && < 5",
+                "binary": ">= 0.5 && < 0.9",
+                "bytestring": ">= 0.10.4 && < 0.13",
+                "deepseq": ">= 1.1 && < 1.6",
+                "ghc-prim": ">= 0.2 && < 0.15",
+                "system-cxx-std-lib": "= 1.0",
+                "template-haskell": ">= 2.5 && < 2.25"
+            }
+        },
+        "text-iso8601": {
+            "version": "0.1.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 5",
+                "integer-conversion": ">= 0.1 && < 0.2",
+                "text": "(>= 1.2.3.0 && < 1.3.0.0) || (>= 2.0 && < 2.2)",
+                "time": ">= 1.8.0.2 && < 1.15",
+                "time-compat": ">= 1.9.4 && < 1.10"
+            }
+        },
+        "text-short": {
+            "version": "0.1.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 4.22",
+                "binary": ">= 0.8.6.0 && < 0.9",
+                "bytestring": ">= 0.10.8.2 && < 0.13",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "ghc-prim": ">= 0.5.3 && < 0.14",
+                "hashable": ">= 1.4.4.0 && < 1.6",
+                "template-haskell": ">= 2.14.0.0 && < 2.24",
+                "text": "(>= 1.2.3.1 && < 1.3) || (>= 2.0 && < 2.2)"
+            }
+        },
+        "th-abstraction": {
+            "version": "0.7.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "containers": ">= 0.4 && < 0.9",
+                "ghc-prim": ">= 0",
+                "template-haskell": ">= 2.11 && < 2.24"
+            }
+        },
+        "th-compat": {
+            "version": "0.1.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "template-haskell": ">= 2.11 && < 2.24"
+            }
+        },
+        "these": {
+            "version": "1.2.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "assoc": ">= 1.1.1 && < 1.2",
+                "base": ">= 4.12.0.0 && < 4.22",
+                "binary": ">= 0.8.6.0 && < 0.10",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "hashable": ">= 1.4.4.0 && < 1.6"
+            }
+        },
+        "time": {
+            "version": "1.12.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.14 && < 5",
+                "deepseq": ">= 1.1"
+            }
+        },
+        "time-compat": {
+            "version": "1.9.8",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 4.22",
+                "base-orphans": ">= 0.9.2 && < 0.10",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "hashable": ">= 1.4.4.0 && < 1.6",
+                "template-haskell": ">= 0",
+                "time": "(>= 1.8.0.2 && < 1.9) || (>= 1.9.2 && < 1.9.4) || (>= 1.10 && < 1.10.1) || (>= 1.11 && < 1.11.2) || (>= 1.12 && < 1.13) || (>= 1.14 && < 1.15)"
+            }
+        },
+        "tls": {
+            "version": "2.1.11",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "asn1-encoding": ">= 0.9 && < 0.10",
+                "asn1-types": ">= 0.3 && < 0.4",
+                "base": ">= 4.9 && < 5",
+                "base16-bytestring": ">= 0",
+                "bytestring": ">= 0.10 && < 0.13",
+                "cereal": ">= 0.5.3 && < 0.6",
+                "crypton": ">= 0.34",
+                "crypton-x509": ">= 1.7 && < 1.8",
+                "crypton-x509-store": ">= 1.6 && < 1.7",
+                "crypton-x509-validation": ">= 1.6.13 && < 1.7",
+                "data-default": ">= 0",
+                "ech-config": ">= 0",
+                "hpke": ">= 0",
+                "memory": ">= 0.18 && < 0.19",
+                "mtl": ">= 2.2 && < 2.4",
+                "network": ">= 3.1",
+                "random": ">= 1.3 && < 1.4",
+                "serialise": ">= 0.2 && < 0.3",
+                "transformers": ">= 0.5 && < 0.7",
+                "unix-time": ">= 0.4.11 && < 0.5",
+                "zlib": ">= 0.7 && < 0.8"
+            }
+        },
+        "toml-reader": {
+            "version": "0.2.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.15 && < 5",
+                "containers": ">= 0",
+                "megaparsec": ">= 0",
+                "parser-combinators": ">= 0",
+                "text": ">= 0",
+                "time": ">= 0"
+            }
+        },
+        "transformers": {
+            "version": "0.6.1.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 2 && < 6"
+            }
+        },
+        "transformers-base": {
+            "version": "0.4.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": "(>= 3 && < 4.4) || (>= 4.5 && < 5)",
+                "base-orphans": ">= 0.3",
+                "stm": ">= 2.3",
+                "transformers": ">= 0.2",
+                "transformers-compat": ">= 0.6.1"
+            }
+        },
+        "transformers-compat": {
+            "version": "0.7.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.3 && < 5",
+                "ghc-prim": ">= 0",
+                "transformers": ">= 0.5.3 && < 0.7"
+            }
+        },
+        "universe-base": {
+            "version": "1.1.4",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12 && < 4.22",
+                "containers": ">= 0.6.0.1 && < 0.8",
+                "tagged": ">= 0.8.8 && < 0.9",
+                "transformers": ">= 0.5.6.2 && < 0.7"
+            }
+        },
+        "universe-reverse-instances": {
+            "version": "1.1.2",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.3 && < 4.22",
+                "containers": ">= 0.4 && < 0.8",
+                "universe-base": ">= 1.1.4 && < 1.1.5"
+            }
+        },
+        "unix": {
+            "version": "2.8.7.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 4.23",
+                "bytestring": ">= 0.9.2 && < 0.13",
+                "filepath": ">= 1.5.0.0",
+                "os-string": ">= 2.0.0",
+                "time": ">= 1.9.1 && < 1.16"
+            }
+        },
+        "unix-time": {
+            "version": "0.4.17",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.4 && < 5",
+                "binary": ">= 0",
+                "bytestring": ">= 0",
+                "old-time": ">= 0"
+            }
+        },
+        "unliftio": {
+            "version": "0.2.25.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "async": "> 2.1.1",
+                "base": ">= 4.9 && < 5",
+                "bytestring": ">= 0",
+                "deepseq": ">= 0",
+                "directory": ">= 0",
+                "filepath": ">= 0",
+                "process": ">= 1.2.0.0",
+                "safe-exceptions": ">= 0",
+                "stm": ">= 2.5",
+                "time": ">= 0",
+                "transformers": ">= 0",
+                "unix": ">= 0",
+                "unliftio-core": ">= 0.1.1.0"
+            }
+        },
+        "unliftio-core": {
+            "version": "0.2.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 10",
+                "transformers": ">= 0.2"
+            }
+        },
+        "unordered-containers": {
+            "version": "0.2.20",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.10 && < 5",
+                "deepseq": ">= 1.4.3",
+                "hashable": ">= 1.4 && < 1.6",
+                "template-haskell": "< 2.24"
+            }
+        },
+        "uuid-types": {
+            "version": "1.0.6",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.12.0.0 && < 5",
+                "binary": ">= 0.8.6.0 && < 0.9",
+                "bytestring": ">= 0.10.8.2 && < 0.13",
+                "deepseq": ">= 1.4.4.0 && < 1.6",
+                "hashable": ">= 1.4.4.0 && < 1.6",
+                "random": ">= 1.2.1.2 && < 1.4",
+                "template-haskell": ">= 2.14.0.0 && < 2.24",
+                "text": "(>= 1.2.3.0 && < 1.3) || (>= 2.0 && < 2.2)"
+            }
+        },
+        "vector": {
+            "version": "0.13.2.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 4.22",
+                "deepseq": ">= 1.1 && < 1.6",
+                "primitive": ">= 0.6.4.0 && < 0.10",
+                "vector-stream": ">= 0.1 && < 0.2"
+            }
+        },
+        "vector-stream": {
+            "version": "0.1.0.1",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 4.22",
+                "ghc-prim": ">= 0.2 && < 0.14"
+            }
+        },
+        "witherable": {
+            "version": "0.5",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 5",
+                "base-orphans": ">= 0.8.4 && < 0.10",
+                "containers": ">= 0.5.7.1 && < 0.8",
+                "hashable": ">= 1.2.7.0 && < 1.6",
+                "indexed-traversable": ">= 0.1.1 && < 0.2",
+                "indexed-traversable-instances": ">= 0.1 && < 0.2",
+                "transformers": ">= 0.5.2.0 && < 0.7",
+                "unordered-containers": ">= 0.2.12.0 && < 0.3",
+                "vector": ">= 0.12.2.0 && < 0.14"
+            }
+        },
+        "zlib": {
+            "version": "0.7.1.0",
+            "integrity": "sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "dependencies": {
+                "base": ">= 4.9 && < 4.22",
+                "bytestring": ">= 0.9 && < 0.13"
+            }
+        }
     }
 }
