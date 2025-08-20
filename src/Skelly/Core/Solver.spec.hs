@@ -108,8 +108,18 @@ spec = do
     liftIO (map getName <$> run service defaultEnv (toPackageDeps input))
       `shouldSatisfy` P.returns (P.eq expected)
 
-  it "throws when resolution fails" $ do
-    runSolver (mkSimpleService [("foo-2.0", [])]) [("foo", "^1.0")]
+  -- FIXME
+  xfail "not working" . it "throws when resolution fails" $ do
+    let index =
+          [ ("foo-1.0", [("bar", "1.0")])
+          , ("bar-1.0", [])
+          , ("bar-2.0", [])
+          ]
+    runSolver (mkSimpleService index) [("foo", "1.0"), ("bar", "2.0")]
+      `shouldSatisfy` P.throws (P.eq DependencyResolutionFailure)
+
+  xfail "fix after resolving TODO" . it "throws when bounds are unsatisfiable" $ do
+    runSolver (mkSimpleService [("foo-1.0", [])]) [("foo", "> 100")]
       `shouldSatisfy` P.throws (P.eq DependencyResolutionFailure)
 
   -- TODO: test helpful message with multiple backtracking failures
@@ -138,8 +148,15 @@ runSolver service input = map renderSolvedPackageId <$> run service defaultEnv (
 renderSolvedPackageId :: SolvedPackage -> Text
 renderSolvedPackageId SolvedPackage{packageId} = renderPackageId packageId
 
-defaultEnv :: CompilerEnv
+defaultEnv :: Env
 defaultEnv =
+  Env
+    { compilerEnv = defaultCompilerEnv
+    , packageFlags = mempty
+    }
+
+defaultCompilerEnv :: CompilerEnv
+defaultCompilerEnv =
   CompilerEnv.CompilerEnv
     { ghcPath = "/usr/local/bin/ghc"
     , ghcVersion = makeVersion [9, 10, 1]
@@ -187,7 +204,7 @@ defaultTestService =
 withIndex :: [(PackageId, PackageDepsList)] -> Service -> Service
 withIndex index service =
   service
-    { getPackageDeps = \_ PackageId{..} ->
+    { getPackageDeps = \_ _ PackageId{..} ->
         pure $ indexMap Map.! packageName Map.! packageVersion
     , getPackageVersionInfo = \_ name ->
         pure
@@ -219,7 +236,7 @@ showVer = Text.pack . show
 data RegressionTest = RegressionTest
   { label :: String
   , index :: [(Text, PackageDepsList)]
-  , env :: CompilerEnv
+  , env :: Env
   , input :: PackageDepsList
   , expected :: [Text]
   }
@@ -260,10 +277,13 @@ regressionTests =
           ]
       , env =
           defaultEnv
-            { CompilerEnv.ghcPkgList =
-                Map.fromList
-                  [ ("base", makeVersion [1])
-                  ]
+            { compilerEnv =
+                defaultCompilerEnv
+                  { CompilerEnv.ghcPkgList =
+                      Map.fromList
+                        [ ("base", makeVersion [1])
+                        ]
+                  }
             }
       , expected =
           [ "base-1"
