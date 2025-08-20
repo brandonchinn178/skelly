@@ -8,9 +8,14 @@ spec :: Spec
 spec = do
   describe "VersionRange" $ do
     describe "renderVersionRange" $ do
+      let same s = (s, s)
+      let (-->) a b = (a, b)
+
       forM_
-        [ ("1.0", "1.0")
-        , ("> 1 && < 2 || > 3", "(> 1 && < 2) || > 3")
+        [ same "1.0"
+        , "> 1 && < 2 || > 3" --> "(> 1 && < 2) || > 3"
+        -- FIXME
+        , same "(>= 0.3 && < 0.4) || (>= 0.4.1.0 && < 0.7)"
         ] $ \(input, expected) -> do
               it (show input <> " => " <> show expected) $ do
                 renderVersionRange (toRange input) `shouldBe` expected
