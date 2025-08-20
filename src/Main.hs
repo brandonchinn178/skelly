@@ -12,6 +12,9 @@ import Skelly.CLI.CommandLock
 import Skelly.CLI.CommandRun
 import Skelly.CLI.CommandTest
 import Skelly.Core.Service (loadServiceIO)
+import System.Exit (exitFailure)
+import System.IO (hPutStrLn, stderr)
+import UnliftIO.Exception (SomeException (..), catch, displayException)
 
 commandMain :: CommandSpec '[]
 commandMain =
@@ -33,4 +36,7 @@ main :: IO ()
 main = do
   ParsedCommand{cmdAction, cmdParsedOptions} <- parseCommand commandMain
   service <- loadServiceIO cmdParsedOptions
-  cmdAction service
+  cmdAction service `catch` \(SomeException e) -> do
+    -- unwrap SomeException to avoid outputting backtrace
+    hPutStrLn stderr (displayException e)
+    exitFailure
