@@ -16,11 +16,13 @@ module Skelly.Core.Lock.LockFile (
   encodeLockFile,
 ) where
 
-import Control.Monad (guard)
+import Control.Monad (guard, (>=>))
 import Crypto.Hash (Digest, SHA256)
 import Crypto.Hash qualified as Crypto
 import Data.Aeson ((.:))
 import Data.Aeson qualified as Aeson
+import Data.Bifunctor (first)
+import Data.ByteString.Base16 qualified as Base16
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -85,21 +87,24 @@ instance Aeson.FromJSON LockFilePackageInfo where
 instance Aeson.FromJSON LockFileDepInfo where
   parseJSON = Aeson.withObject "LockFileDepInfo" $ \o -> do
     version <- o .: "version"
-    Just integrity <- decodeDigest <$> o .: "integrity"
+    integrityRaw <- o .: "integrity"
+    integrity <-
+      maybe (fail $ "Failed to parse integrity: " <> show integrityRaw) pure $
+        decodeDigest integrityRaw
     deps <- o .: "dependencies"
     pure LockFileDepInfo{..}
 
 readLockFile :: FilePath -> IO LockFile
 readLockFile fp = do
   lockFileContent <- Text.readFile fp
-  maybe (throwIO InvalidLockFile) pure $ decodeLockFile lockFileContent
+  either (throwIO . InvalidLockFile) pure $ decodeLockFile lockFileContent
 
 writeLockFile :: FilePath -> LockFile -> IO ()
 writeLockFile fp lockFile = Text.writeFile fp $ encodeLockFile lockFile <> "\n"
 
 -- TODO: resolve merge conflicts
-decodeLockFile :: Text -> Maybe LockFile
-decodeLockFile = Aeson.decode . TextL.encodeUtf8 . TextL.fromStrict
+decodeLockFile :: Text -> Either Text LockFile
+decodeLockFile = first Text.pack . Aeson.eitherDecode . TextL.encodeUtf8 . TextL.fromStrict
 
 -- | Encode lock file as a JSON string.
 --
@@ -151,6 +156,7 @@ encodeDigest :: Digest SHA256 -> Text
 encodeDigest digest = "sha256=" <> (Text.pack . show) digest
 
 decodeDigest :: Text -> Maybe (Digest SHA256)
-decodeDigest input = do
-  digest <- Text.stripPrefix "sha256=" input
-  Crypto.digestFromByteString $ Text.encodeUtf8 digest
+decodeDigest = Text.stripPrefix "sha256=" >=> decodeBase16 >=> Crypto.digestFromByteString
+  where
+    decodeBase16 = eitherToMaybe . Base16.decode . Text.encodeUtf8
+    eitherToMaybe = either (const Nothing) Just

@@ -35,7 +35,7 @@ data SkellyError
   | BadCabalFile PackageId Text
   | DependencyResolutionFailure -- ^ TODO: add conflict info
   | UnsatisfiableVersionRange PackageName VersionRange
-  | InvalidLockFile
+  | InvalidLockFile Text
   deriving (Show, Eq)
 
 instance Exception SkellyError where
@@ -76,4 +76,9 @@ renderSkellyError = \case
   DependencyResolutionFailure -> "Failed to resolve dependencies"
   UnsatisfiableVersionRange package range ->
     "Unsatisfiable version range for package " <> package <> ": " <> renderVersionRange range
-  InvalidLockFile -> "Invalid lock file. Either revert it to a known good state or delete it to generate afresh"
+  InvalidLockFile msg ->
+    Text.unlines
+      [ "Failed to parse lock file: " <> msg
+      , ""
+      , "Invalid lock file. Either revert it to a known good state or delete it to generate afresh."
+      ]

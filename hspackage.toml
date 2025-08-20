@@ -8,6 +8,7 @@ ghc = ">= 9.10 && < 9.12"
 [skelly.dependencies]
 aeson = "^2.2.3.0"
 base = "^4.20.0.0"
+base16-bytestring = "^1.0.2.0"
 bytestring = "^0.12.1.0"
 Cabal-syntax = "^3.14.1.0"
 cabal-install = "^3.14.1.0"
