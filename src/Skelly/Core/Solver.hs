@@ -85,6 +85,7 @@ import Skelly.Core.WorkspaceConfig (PackageFlags)
 import UnliftIO.MVar (MVar, newMVar, modifyMVar)
 import UnliftIO.Exception (throwIO)
 
+-- FIXME: Replace PackageDeps with RawPackageDeps; skelly.lock should be parsed as VersionRange since CompiledVersionRange is lossy
 type RawPackageDeps = Map PackageName VersionRange
 type PackageDeps = Map PackageName CompiledVersionRange
 

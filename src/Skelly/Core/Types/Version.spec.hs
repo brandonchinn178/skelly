@@ -20,6 +20,10 @@ spec = do
               it (show input <> " => " <> show expected) $ do
                 renderVersionRange (toRange input) `shouldBe` expected
 
+    -- FIXME
+    prop "parseVersionRange . renderVersionRange === Just" $ do
+      (parseVersionRange . renderVersionRange) P.=== Just `shouldSatisfy` P.isoWith genVersionRange
+
     describe "invalid parses" $ do
       forM_
         [ "1 &&"
@@ -115,6 +119,7 @@ spec = do
         , ("^1.2 || ^1.3", "≥ 1.2 && < 1.4")
         , ("^1.3 || ^1.2", "≥ 1.2 && < 1.4")
         , ("^1.3 || < 1 || ^1.2", "< 1 || (≥ 1.2 && < 1.4)")
+        , ("*", "")
         ] $ \(input, expected) -> do
               it (show input <> " => " <> show expected) $ do
                 prettyCompiledRange (toRangeC input) `shouldBe` expected
@@ -136,3 +141,29 @@ toRangeC s =
   case compileRange (toRange s) of
     Just r -> r
     Nothing -> error $ "Invalid range: " <> Text.unpack s
+
+genVersionRange :: Gen VersionRange
+genVersionRange =
+  Gen.recursive
+    Gen.choice
+    [ pure AnyVersion
+    , VersionWithOp <$> genVersionOp <*> genVersion
+    ]
+    [ Gen.subterm2 genVersionRange genVersionRange VersionRangeAnd
+    , Gen.subterm2 genVersionRange genVersionRange VersionRangeOr
+    ]
+
+genVersionOp :: Gen VersionOp
+genVersionOp =
+  Gen.element
+    [ VERSION_LT
+    , VERSION_LTE
+    , VERSION_NEQ
+    , VERSION_EQ
+    , VERSION_GT
+    , VERSION_GTE
+    , VERSION_PVP_MAJOR
+    ]
+
+genVersion :: Gen Version
+genVersion = makeVersion <$> Gen.list (Range.linear 1 4) (Gen.int (Range.linear 1 100))
