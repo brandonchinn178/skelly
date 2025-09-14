@@ -29,6 +29,7 @@ module Skelly.Core.Types.Version (
 ) where
 
 import Control.Monad ((>=>))
+import Control.Monad.Combinators.Expr qualified as Combinators
 import Data.Aeson qualified as Aeson
 import Data.Interval (Interval)
 import Data.Interval qualified as Interval
@@ -75,15 +76,19 @@ data VersionOp
 parseVersionRange :: Text -> Maybe VersionRange
 parseVersionRange = runReadP (parseAny +++ parseRange)
   where
-    parseRange = ReadP.chainl1 parseVersionWithOp parseRangeOp
+    parseRange =
+      Combinators.makeExprParser
+        ( ReadP.choice
+            [ ReadP.between (token "(") (token ")") parseRange
+            , parseVersionWithOp
+            ]
+        )
+        [ [ Combinators.InfixL (VersionRangeAnd <$ token "&&")
+          , Combinators.InfixL (VersionRangeOr <$ token "||")
+          ]
+        ]
 
     parseAny = AnyVersion <$ ReadP.string "*"
-
-    parseRangeOp =
-      ReadP.choice
-        [ VersionRangeAnd <$ token "&&"
-        , VersionRangeOr <$ token "||"
-        ]
 
     parseVersionWithOp = do
       op <-
