@@ -20,7 +20,6 @@ spec = do
               it (show input <> " => " <> show expected) $ do
                 renderVersionRange (toRange input) `shouldBe` expected
 
-    -- FIXME
     prop "parseVersionRange . renderVersionRange === Just" $ do
       (parseVersionRange . renderVersionRange) P.=== Just `shouldSatisfy` P.isoWith genVersionRange
 
@@ -143,15 +142,16 @@ toRangeC s =
     Nothing -> error $ "Invalid range: " <> Text.unpack s
 
 genVersionRange :: Gen VersionRange
-genVersionRange =
-  Gen.recursive
-    Gen.choice
-    [ pure AnyVersion
-    , VersionWithOp <$> genVersionOp <*> genVersion
-    ]
-    [ Gen.subterm2 genVersionRange genVersionRange VersionRangeAnd
-    , Gen.subterm2 genVersionRange genVersionRange VersionRangeOr
-    ]
+genVersionRange = Gen.choice [pure AnyVersion, go]
+  where
+    go =
+      Gen.recursive
+        Gen.choice
+        [ VersionWithOp <$> genVersionOp <*> genVersion
+        ]
+        [ Gen.subterm2 go go VersionRangeAnd
+        , Gen.subterm2 go go VersionRangeOr
+        ]
 
 genVersionOp :: Gen VersionOp
 genVersionOp =
