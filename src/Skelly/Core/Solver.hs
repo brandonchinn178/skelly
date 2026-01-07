@@ -86,14 +86,12 @@ import Skelly.Core.WorkspaceConfig (PackageFlags)
 import UnliftIO.Exception (throwIO)
 import UnliftIO.MVar (MVar, modifyMVar, newMVar)
 
--- FIXME: Replace PackageDeps with RawPackageDeps; skelly.lock should be parsed as VersionRange since CompiledVersionRange is lossy
-type RawPackageDeps = Map PackageName VersionRange
-type PackageDeps = Map PackageName CompiledVersionRange
+type PackageDeps = Map PackageName VersionRange
 
 data Service = Service
   { loggingService :: Logging.Service
   , withCursor :: forall a. (PackageIndex.PackageIndexCursor -> IO a) -> IO a
-  , getPackageDeps :: PackageIndex.PackageIndexCursor -> FlagAssignment -> PackageId -> IO RawPackageDeps
+  , getPackageDeps :: PackageIndex.PackageIndexCursor -> FlagAssignment -> PackageId -> IO PackageDeps
   , getPackageVersionInfo :: PackageIndex.PackageIndexCursor -> PackageName -> IO PackageIndex.PackageVersionInfo
   , rankPackage :: PackageName -> Int
   -- ^ Rank package, where higher is better.
@@ -390,13 +388,13 @@ getCachedVal Cache{..} k =
 
 data PackageCache = PackageCache
   { packageVersionCache :: Cache PackageName PackageIndex.PackageVersionInfo
-  , packageDependencyCache :: Cache PackageId RawPackageDeps
+  , packageDependencyCache :: Cache PackageId PackageDeps
   }
 
 initPackageCache ::
   (MonadIO m) =>
   (PackageName -> IO PackageIndex.PackageVersionInfo) ->
-  (PackageId -> IO RawPackageDeps) ->
+  (PackageId -> IO PackageDeps) ->
   m PackageCache
 initPackageCache getVersionInfo getDeps = do
   packageVersionCache <- initCache getVersionInfo
@@ -406,5 +404,5 @@ initPackageCache getVersionInfo getDeps = do
 getPackageVersionInfoCached :: (MonadIO m) => PackageCache -> PackageName -> m PackageIndex.PackageVersionInfo
 getPackageVersionInfoCached PackageCache{packageVersionCache} = getCachedVal packageVersionCache
 
-getPackageDepsCached :: (MonadIO m) => PackageCache -> PackageId -> m RawPackageDeps
+getPackageDepsCached :: (MonadIO m) => PackageCache -> PackageId -> m PackageDeps
 getPackageDepsCached PackageCache{packageDependencyCache} = getCachedVal packageDependencyCache
