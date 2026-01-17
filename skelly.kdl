@@ -1,0 +1,5 @@
+flags {
+    directory "os-string"
+    hackage-security "cabal-syntax"
+    unix "os-string"
+}

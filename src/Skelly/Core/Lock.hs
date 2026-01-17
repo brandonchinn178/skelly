@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
@@ -113,9 +114,9 @@ data LockFileStatus
 
 toPackageInfo :: PackageConfig -> Either SkellyError (PackageName, LockFilePackageInfo)
 toPackageInfo config = do
-  let name = PackageConfig.packageName config
+  let name = config.packageName
   deps <-
-    flip Map.traverseWithKey (PackageConfig.allDependencies config) $ \package range ->
+    flip Map.traverseWithKey config.allDependencies $ \package range ->
       case compileRange range of
         Just r -> Right r
         Nothing -> Left $ UnsatisfiableVersionRange package range

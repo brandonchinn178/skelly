@@ -1,34 +1,30 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Skelly.Core.PackageConfig (
-  -- * Types
-  PackageConfig,
+  -- * PackageConfig
+  PackageConfig (..),
   LibraryInfo (..),
   BinaryInfo (..),
   SharedInfo (..),
 
-  -- * Getters
-  packageName,
-  packageVersion,
-  packageToolchainGHC,
-  packageDependencies,
-  packageLibraries,
-  packageBinaries,
-  allDependencies,
-
-  -- * Methods
+  -- ** Methods
   load,
-  save,
-  addDependency,
+  modify,
 ) where
 
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Text.IO qualified as Text
+import GHC.Records (HasField (..))
+import KDL qualified
+import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.Types.PackageId (PackageName)
 import Skelly.Core.Types.Version (
@@ -36,28 +32,19 @@ import Skelly.Core.Types.Version (
   VersionRange (VersionRangeAnd),
   parseVersion,
   parseVersionRange,
-  renderVersionRange,
  )
-import Skelly.Core.Utils.Config (discoverConfig)
-import Skelly.Core.Utils.TOML qualified as TOML
-import UnliftIO.Exception (fromEither, fromEitherM)
+import Skelly.Core.Utils.Config (findConfig)
+import Skelly.Core.Utils.KDL qualified as KDL
+import UnliftIO.Exception (throwIO)
 
 -- | The `hspackage.toml` file.
 data PackageConfig = PackageConfig
-  { configPath :: FilePath
-  , parsedConfig :: ParsedPackageConfig
-  -- ^ Invariant: In sync with rawConfig
-  , rawConfig :: TOML.Document
-  -- ^ Invariant: In sync with parsedConfig
-  }
-
-data ParsedPackageConfig = ParsedPackageConfig
-  { _packageName :: PackageName
-  , _packageVersion :: Version
-  , _packageToolchainGHC :: VersionRange
-  , _packageDependencies :: DependencyMap
-  , _packageLibraries :: Map PackageName LibraryInfo
-  , _packageBinaries :: Map PackageName BinaryInfo
+  { packageName :: PackageName
+  , packageVersion :: Version
+  , packageToolchainGHC :: VersionRange
+  , packageDependencies :: DependencyMap
+  , packageLibraries :: Map PackageName LibraryInfo
+  , packageBinaries :: Map PackageName BinaryInfo
   }
 
 type DependencyMap = Map PackageName VersionRange
@@ -81,55 +68,41 @@ data BinaryInfo = BinaryInfo
   }
   deriving (Show)
 
+instance HasField "allDependencies" PackageConfig DependencyMap where
+  getField config =
+    Map.unionsWith VersionRangeAnd . concat $
+      [ [dependencies | LibraryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ config.packageLibraries]
+      , [dependencies | BinaryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ config.packageBinaries]
+      ]
+
+{----- Load a PackageConfig -----}
+
 load :: Logging.Service -> IO PackageConfig
-load loggingService =
-  discoverConfig loggingService "hspackage.toml" >>= loadFromFile
+load loggingService = findPackageConfig loggingService >>= loadFromFile
+
+findPackageConfig :: Logging.Service -> IO FilePath
+findPackageConfig loggingService = findConfig loggingService "hspackage.kdl"
 
 loadFromFile :: FilePath -> IO PackageConfig
-loadFromFile configPath = do
-  rawConfig <- fromEitherM $ TOML.decodeFile configPath
-  parsedConfig <- fromEither $ TOML.parseWith decodeParsedConfig rawConfig
-  pure PackageConfig{..}
+loadFromFile path =
+  KDL.decodeFileWith decoder path >>= either (throwIO . InvalidConfig path . KDL.renderDecodeError) pure
 
-decodeParsedConfig :: TOML.Decoder ParsedPackageConfig
-decodeParsedConfig = do
-  packageDeps <- TOML.getFieldsWith decodeDependencies ["skelly", "dependencies"]
-  pure ParsedPackageConfig
-    <*> TOML.getFields ["skelly", "package", "name"]
-    <*> TOML.getFieldsWith decodeVersion ["skelly", "package", "version"]
-    <*> TOML.getFieldsWith decodeVersionRange ["skelly", "toolchain", "ghc"]
-    <*> pure packageDeps
-    <*> decodeLibraries packageDeps
-    <*> decodeBinaries packageDeps
+decoder :: KDL.DocumentDecoder PackageConfig
+decoder = KDL.document $ do
+  KDL.nodeWith "package" $ do
+    packageName <- KDL.children $ KDL.argAt "name"
+    packageVersion <- KDL.children $ KDL.argAt "version"
+    packageToolchainGHC <- KDL.children . KDL.nodeWith "toolchain" . KDL.children $ KDL.argAt "ghc"
+    packageDependencies <- KDL.children . KDL.nodeWith "dependencies" . KDL.children $ KDL.remainingUniqueNodesWith KDL.arg
+    packageLibraries <- decodeLibraries packageDependencies
+    packageBinaries <- decodeBinaries packageDependencies
+    pure PackageConfig{..}
  where
-  decodeVersion :: TOML.Decoder Version
-  decodeVersion = TOML.makeDecoder $ \v ->
-    case v of
-      TOML.String s ->
-        case parseVersion s of
-          Just version -> pure version
-          Nothing -> TOML.invalidValue "Invalid version" v
-      _ -> TOML.typeMismatch v
-
-  decodeVersionRange :: TOML.Decoder VersionRange
-  decodeVersionRange = TOML.makeDecoder $ \v ->
-    case v of
-      TOML.String s ->
-        case parseVersionRange s of
-          Just versionRange -> pure versionRange
-          Nothing -> TOML.invalidValue "Invalid version range" v
-      _ -> TOML.typeMismatch v
-
-  decodeDependencies :: TOML.Decoder DependencyMap
-  decodeDependencies = TOML.makeDecoder $ \case
-    TOML.Table table -> traverse (TOML.runDecoder decodeVersionRange) table
-    v -> TOML.typeMismatch v
-
   -- TODO: parse from [[skelly.lib]]
   -- TODO: get deps in [skelly.lib.dependencies] if present
   -- TODO: default name: same name as package
   -- TODO: error if duplicate names
-  decodeLibraries :: DependencyMap -> TOML.Decoder (Map PackageName LibraryInfo)
+  decodeLibraries :: DependencyMap -> KDL.NodeDecoder (Map PackageName LibraryInfo)
   decodeLibraries deps =
     pure . Map.singleton "skelly" $
       LibraryInfo
@@ -150,7 +123,7 @@ decodeParsedConfig = do
   --         if directory exists => [src/bin/<name>/]
   --         otherwise => []
   -- TODO: error if duplicate names
-  decodeBinaries :: DependencyMap -> TOML.Decoder (Map PackageName BinaryInfo)
+  decodeBinaries :: DependencyMap -> KDL.NodeDecoder (Map PackageName BinaryInfo)
   decodeBinaries deps =
     pure . Map.singleton "skelly" $
       BinaryInfo
@@ -162,53 +135,21 @@ decodeParsedConfig = do
         , mainFile = "src/Main.hs"
         }
 
-{----- Getters -----}
+instance KDL.DecodeValue Version where
+  valueDecoder = KDL.withDecoder KDL.text $ \s ->
+    maybe (KDL.failM $ "Invalid version: " <> s) pure $
+      parseVersion s
 
-getParsedField :: (ParsedPackageConfig -> a) -> PackageConfig -> a
-getParsedField f PackageConfig{parsedConfig} = f parsedConfig
+instance KDL.DecodeValue VersionRange where
+  valueDecoder = KDL.withDecoder KDL.text $ \s ->
+    maybe (KDL.failM $ "Invalid version range: " <> s) pure $
+      parseVersionRange s
 
-packageName :: PackageConfig -> PackageName
-packageName = getParsedField $ \ParsedPackageConfig{_packageName = x} -> x
+{----- Modify a config -----}
 
-packageVersion :: PackageConfig -> Version
-packageVersion = getParsedField $ \ParsedPackageConfig{_packageVersion = x} -> x
-
-packageToolchainGHC :: PackageConfig -> VersionRange
-packageToolchainGHC = getParsedField $ \ParsedPackageConfig{_packageToolchainGHC = x} -> x
-
-packageDependencies :: PackageConfig -> DependencyMap
-packageDependencies = getParsedField $ \ParsedPackageConfig{_packageDependencies = x} -> x
-
-packageLibraries :: PackageConfig -> Map PackageName LibraryInfo
-packageLibraries = getParsedField $ \ParsedPackageConfig{_packageLibraries = x} -> x
-
-packageBinaries :: PackageConfig -> Map PackageName BinaryInfo
-packageBinaries = getParsedField $ \ParsedPackageConfig{_packageBinaries = x} -> x
-
-allDependencies :: PackageConfig -> DependencyMap
-allDependencies config =
-  Map.unionsWith VersionRangeAnd . concat $
-    [ [dependencies | LibraryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageLibraries config]
-    , [dependencies | BinaryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageBinaries config]
-    ]
-
-{----- Updaters -----}
-
-save :: PackageConfig -> IO ()
-save PackageConfig{..} = TOML.encodeFile configPath rawConfig
-
-addDependency :: PackageName -> VersionRange -> PackageConfig -> PackageConfig
-addDependency dep versionRange config@PackageConfig{..} =
-  config
-    { parsedConfig =
-        parsedConfig
-          { _packageDependencies = Map.insert dep versionRange _packageDependencies
-          }
-    , rawConfig =
-        TOML.setKey
-          ["skelly", "dependencies", dep]
-          (TOML.String $ renderVersionRange versionRange)
-          rawConfig
-    }
- where
-  ParsedPackageConfig{..} = parsedConfig
+modify :: Logging.Service -> (KDL.Document -> KDL.Document) -> IO ()
+modify loggingService f = do
+  fp <- findPackageConfig loggingService
+  doc <- KDL.parseFile fp >>= either (throwIO . InvalidConfig fp) pure
+  let doc' = f doc
+  Text.writeFile fp $ KDL.render doc'

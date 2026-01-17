@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Skelly.Core.Utils.Config (
-  discoverConfig,
+  findConfig,
 ) where
 
 import Data.Text qualified as Text
@@ -11,8 +11,8 @@ import System.FilePath (takeDirectory, (</>))
 import UnliftIO.Directory (doesFileExist, getCurrentDirectory)
 import UnliftIO.Exception (throwIO)
 
-discoverConfig :: Logging.Service -> FilePath -> IO FilePath
-discoverConfig loggingService configName = do
+findConfig :: Logging.Service -> FilePath -> IO FilePath
+findConfig loggingService configName = do
   paths <- getConfigPaths <$> getCurrentDirectory
   findM doesFileExist paths >>= \case
     Nothing -> throwIO $ NoConfig configName paths
