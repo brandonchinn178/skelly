@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
@@ -151,8 +152,8 @@ run service@Service{..} Options{..} = do
           logWarn loggingService $
             "Unknown targets: " <> Text.intercalate ", " unknownTargets
         pure components'
-  libs <- resolveTargets' (PackageConfig.packageLibraries pkg) libTargets
-  bins <- resolveTargets' (PackageConfig.packageBinaries pkg) binTargets
+  libs <- resolveTargets' pkg.packageLibraries libTargets
+  bins <- resolveTargets' pkg.packageBinaries binTargets
 
   -- load build environment
   let ghcVersion = makeVersion [9, 10, 1] -- TODO: decide version from hspackage.toml
@@ -162,16 +163,8 @@ run service@Service{..} Options{..} = do
   -- TODO: check for Hackage updates
   -- TODO: getOrCreate lock file
   let
-    libDeps =
-      [ dependencies
-      | PackageConfig.LibraryInfo{sharedInfo} <- Map.elems libs
-      , let PackageConfig.SharedInfo{dependencies} = sharedInfo
-      ]
-    binDeps =
-      [ dependencies
-      | PackageConfig.BinaryInfo{sharedInfo} <- Map.elems bins
-      , let PackageConfig.SharedInfo{dependencies} = sharedInfo
-      ]
+    libDeps = map (.sharedInfo.dependencies) $ Map.elems libs
+    binDeps = map (.sharedInfo.dependencies) $ Map.elems bins
     allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
   logDebug loggingService "Resolving dependencies..."
   -- allTransitiveDeps <- solveDeps env allDeps
@@ -190,7 +183,7 @@ run service@Service{..} Options{..} = do
       let libraryId =
             PackageId
               { packageName = name
-              , packageVersion = PackageConfig.packageVersion pkg
+              , packageVersion = pkg.packageVersion
               }
       getLibraryBuildPlan service libraryId libInfo
 
@@ -198,11 +191,11 @@ run service@Service{..} Options{..} = do
   let binDir = distDir </> "gen"
   let binFiles =
         [ ( binName -- name of binary
-          , mainFile -- original file
+          , bin.mainFile -- original file
           , binDir </> Text.unpack ("Main_" <> binName <> ".hs") -- move file here
           , binDir </> Text.unpack (binName <> ".hs") -- new file
           )
-        | (binName, PackageConfig.BinaryInfo{mainFile}) <- Map.toList bins
+        | (binName, bin) <- Map.toList bins
         ]
   createDirectoryIfMissing True binDir
   forM_ binFiles $ \(binName, binSrc, binModule, binNew) -> do
@@ -219,10 +212,8 @@ run service@Service{..} Options{..} = do
   -- batch build
   let libDirs =
         [ dir
-        | lib <- Map.elems $ PackageConfig.packageLibraries pkg
-        , let PackageConfig.LibraryInfo{sharedInfo} = lib
-        , let PackageConfig.SharedInfo{sourceDirs} = sharedInfo
-        , dir <- sourceDirs
+        | lib <- Map.elems pkg.packageLibraries
+        , dir <- lib.sharedInfo.sourceDirs
         ]
   ghcBuild loggingService env projectDir . concat $
     [ ["-odir", distDir </> "out"]
@@ -303,9 +294,7 @@ getLibraryBuildPlan Service{..} libraryId libraryConfig = do
 
   pure LibraryBuildPlan{..}
  where
-  PackageConfig.LibraryInfo{sharedInfo} = libraryConfig
-  PackageConfig.SharedInfo{sourceDirs} = sharedInfo
-
+  sourceDirs = libraryConfig.sharedInfo.sourceDirs
   showModulesAndPaths =
     let showModuleAndPath (name, path) = renderModuleName name <> " (" <> Text.pack path <> ")"
      in Text.intercalate ", " . map showModuleAndPath

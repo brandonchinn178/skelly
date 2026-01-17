@@ -27,6 +27,7 @@ import Skelly.Core.Types.Version (
 
 data SkellyError
   = NoConfig FilePath [FilePath]
+  | InvalidConfig FilePath Text
   | ExecutableNotFound Text
   | SomeHackageError SomeHackageError
   | UnknownPackage PackageName
@@ -56,6 +57,11 @@ renderSkellyError = \case
     Text.unlines $
       ("Could not find " <> Text.pack configName <> " in any of the following locations:")
         : ["  - " <> Text.pack loc | loc <- locs]
+  InvalidConfig fp msg ->
+    Text.unlines
+      [ "Invalid config: " <> Text.pack fp
+      , msg
+      ]
   ExecutableNotFound exe ->
     "Could not find executable: " <> exe
   SomeHackageError (MkSomeHackageError e) ->

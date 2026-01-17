@@ -1,9 +1,0 @@
-[skelly.package]
-name = "example"
-version = "0.0.0"
-
-[skelly.toolchain]
-ghc = ">= 9.6 && < 9.8"
-
-[skelly.dependencies]
-base = "< 5"

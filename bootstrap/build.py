@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
+# ruff: disable[F541]
 
 from __future__ import annotations
-
-import sys
-if sys.version_info < (3, 11):
-    raise Exception("Bootstrap build requires at least Python 3.11")
 
 import itertools
 import os
 import re
 import shutil
 import subprocess
-import tomllib
+import sys
 from pathlib import Path
 from typing import Any, NamedTuple
+
+import kdl
 
 HERE = Path(__file__).resolve().parent
 TOP = HERE.parent
@@ -21,11 +20,13 @@ BUILD_DIR = HERE / "build"
 DIST_DIR = HERE / "dist"
 SRC_DIR = TOP / "src"
 
+
 def main():
     if sys.argv[1:2] == ["test"]:
         test(sys.argv[2:])
     else:
         build()
+
 
 def init_build_dir():
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,7 @@ def init_build_dir():
 
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
-    hs_package = HsPackage.parse(TOP / "hspackage.toml")
+    hs_package = HsPackage.parse(TOP / "hspackage.kdl")
     hs_package.write_cabal(TOP / "skelly.cabal")
     (TOP / "skelly.cabal").copy(BUILD_DIR / "skelly.cabal")
 
@@ -43,7 +44,8 @@ def init_build_dir():
         [
             "cabal",
             "configure",
-            "-w", f"ghc-{ghc_version}",
+            "-w",
+            f"ghc-{ghc_version}",
             "--enable-tests",
             "--test-show-details=streaming",
             "--ghc-options=-fdiagnostics-color=always",
@@ -52,11 +54,20 @@ def init_build_dir():
         check=True,
     )
 
+
+def get_cabal() -> str:
+    cabal = shutil.which("cabal")
+    if not cabal:
+        raise Exception("cabal not found")
+    return cabal
+
+
 def build():
     init_build_dir()
     os.chdir(BUILD_DIR)
+    cabal = get_cabal()
     os.execv(
-        shutil.which("cabal"),
+        cabal,
         [
             "cabal",
             "install",
@@ -66,6 +77,7 @@ def build():
         ],
     )
 
+
 # TODO: remove when `skelly test` works
 def test(args):
     init_build_dir()
@@ -74,7 +86,7 @@ def test(args):
     test_modules = []
     for f in (TOP / "src").rglob("*.spec.hs"):
         path = f.relative_to(TOP / "src")
-        module_name = path.as_posix().replace('.spec.hs', '').replace('/', '.')
+        module_name = path.as_posix().replace(".spec.hs", "").replace("/", ".")
 
         dest = BUILD_DIR / "test" / path
         dest = dest.with_stem(dest.stem.replace(".spec", "Spec"))
@@ -82,16 +94,34 @@ def test(args):
         test_module_name = module_name + "Spec"
         test_file = f.read_text()
         test_file_lines = test_file.splitlines()
-        body_start_line = len(list(itertools.takewhile(lambda s: re.match(r"{-#|\s*$", s) is not None, test_file_lines)))
+        body_start_line = len(
+            list(
+                itertools.takewhile(
+                    lambda s: re.match(r"{-#|\s*$", s) is not None, test_file_lines
+                )
+            )
+        )
         test_file_lines = [
             *test_file_lines[:body_start_line],
             f"module {test_module_name} where",
             f"import Skeletest",
-            *(["import qualified Skeletest.Predicate as P"] if re.search(r"\bP\.\w", test_file) else []),
-            *(["import qualified Skeletest.Prop.Gen as Gen"] if re.search(r"\bGen\.\w", test_file) else []),
-            *(["import qualified Skeletest.Prop.Range as Range"] if re.search(r"\bRange\.\w", test_file) else []),
+            *(
+                ["import qualified Skeletest.Predicate as P"]
+                if re.search(r"\bP\.\w", test_file)
+                else []
+            ),
+            *(
+                ["import qualified Skeletest.Prop.Gen as Gen"]
+                if re.search(r"\bGen\.\w", test_file)
+                else []
+            ),
+            *(
+                ["import qualified Skeletest.Prop.Range as Range"]
+                if re.search(r"\bRange\.\w", test_file)
+                else []
+            ),
             f"import {module_name}",
-            f"{{-# LINE {body_start_line + 1} \"{f.relative_to(TOP)}\" #-}}",
+            f'{{-# LINE {body_start_line + 1} "{f.relative_to(TOP)}" #-}}',
             *test_file_lines[body_start_line:],
         ]
 
@@ -121,40 +151,42 @@ def test(args):
         "    unliftio,",
     ]
     cabal = (BUILD_DIR / "skelly.cabal").read_text()
-    (BUILD_DIR / "skelly.cabal").write_text(cabal + "\n" + "\n".join(cabal_lines) + "\n")
+    (BUILD_DIR / "skelly.cabal").write_text(
+        cabal + "\n" + "\n".join(cabal_lines) + "\n"
+    )
 
     os.chdir(BUILD_DIR)
-    os.execv(shutil.which("cabal"), ["cabal", "test", *(f"--test-option={arg}" for arg in args)])
+    cabal = get_cabal()
+    os.execv(
+        cabal,
+        ["cabal", "test", *(f"--test-option={arg}" for arg in args)],
+    )
+
 
 class HsPackage(NamedTuple):
     config: dict[str, Any]
 
     @classmethod
     def parse(cls, file: Path) -> HsPackage:
-        with file.open("rb") as f:
-            config = tomllib.load(f)
+        config = kdl.parse(file.read_text())
         return cls(config=config)
 
     # TODO: Replace with `skelly gen-cabal`
     def write_cabal(self, file: Path) -> None:
         # header + metadata
-        name = self.config["skelly"]["package"]["name"]
-        version = self.config["skelly"]["package"]["version"]
+        name = self.config["package"]["name"].args[0]
+        version = self.config["package"]["version"].args[0]
         lines = [
             f"cabal-version: 2.4",
             f"name: {name}",
             f"version: {version}",
         ]
 
-        # extra files
-        # TODO: get this dynamically
-        lines += [f"extra-source-files: src/Skelly/Core/Utils/TOML_encode.py"]
-
         # library
         modules = self.get_modules()
         lib_deps = [
-            f"{name} {_rewrite_range(version_range)}"
-            for name, version_range in self.config["skelly"]["dependencies"].items()
+            f"{dep.name} {_rewrite_range(dep.args[0])}"
+            for dep in self.config["package"]["dependencies"].nodes
         ]
         lines += [
             f"library",
@@ -162,9 +194,9 @@ class HsPackage(NamedTuple):
             f"  hs-source-dirs: src",
             f"  ghc-options: -Wall -Werror",  # TODO: add this dynamically
             f"  exposed-modules:",
-          *(f"    {s}" for s in modules),
+            *(f"    {s}" for s in modules),
             f"  build-depends:",
-          *(f"    {dep}," for dep in lib_deps),
+            *(f"    {dep}," for dep in lib_deps),
         ]
 
         # executable
@@ -175,7 +207,7 @@ class HsPackage(NamedTuple):
             f"  ghc-options: -Wall -Werror",  # TODO: add this dynamically
             f"  build-depends:",
             f"    {name},",
-          *(f"    {dep}," for dep in lib_deps),
+            *(f"    {dep}," for dep in lib_deps),
         ]
 
         file.write_text("\n".join(lines))
@@ -200,9 +232,7 @@ class HsPackage(NamedTuple):
             if self.is_allowed_ghc_version(version):
                 return version
 
-        raise Exception(
-            f"Could not find an installed GHC matching {self.ghc_toolchain}"
-        )
+        raise Exception("Could not find a compatible GHC")
 
     def get_modules(self) -> list[str]:
         modules = []
@@ -219,11 +249,13 @@ class HsPackage(NamedTuple):
 
         return modules
 
+
 def _rewrite_range(range: str) -> str:
     if range.startswith("^"):
         return f"^>= {range[1:]}"
     else:
         return range
+
 
 if __name__ == "__main__":
     main()

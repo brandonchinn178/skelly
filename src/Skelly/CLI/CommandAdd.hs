@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -12,6 +13,7 @@
 module Skelly.CLI.CommandAdd (commandAdd) where
 
 import Data.Text qualified as Text
+import KDL qualified
 import Options.Applicative qualified as Opt
 import Skelly.CLI.Command
 import Skelly.CLI.CommandBase
@@ -19,7 +21,6 @@ import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
-import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Service (IsService (..), loadService)
@@ -33,6 +34,7 @@ import Skelly.Core.Types.Version (
   parseVersionRange,
   renderVersionRange,
  )
+import Skelly.Core.Utils.KDL qualified as KDL
 import UnliftIO.Exception (throwIO)
 
 commandAdd :: CommandSpec '[BaseOptions]
@@ -74,8 +76,7 @@ instance
     pure
       Service
         { loggingService
-        , loadPackageConfig = PackageConfig.load loggingService
-        , savePackageConfig = PackageConfig.save
+        , modifyRawConfig = PackageConfig.modify loggingService
         , getPreferredVersion = \env pkgName ->
             PackageIndex.withCursor packageIndexService $ \cursor -> do
               PackageIndex.PackageVersionInfo{..} <- PackageIndex.getPackageVersionInfo cursor pkgName
@@ -88,8 +89,7 @@ instance
 
 data Service = Service
   { loggingService :: Logging.Service
-  , loadPackageConfig :: IO PackageConfig
-  , savePackageConfig :: PackageConfig -> IO ()
+  , modifyRawConfig :: (KDL.Document -> KDL.Document) -> IO ()
   , getPreferredVersion :: CompilerEnv -> PackageName -> IO Version
   }
 
@@ -101,27 +101,40 @@ data Options = Options
 
 run :: Service -> Options -> IO ()
 run Service{..} Options{..} = do
-  cfg <- loadPackageConfig
   let ghcVersion = makeVersion [9, 10, 1] -- TODO: get from hspackage.toml
   env <- loadCompilerEnv ghcVersion
-  foldlM (go env) cfg dependencies >>= savePackageConfig
+  deps <- mapM (resolveRange env) dependencies
+  modifyRawConfig $ \doc -> foldl' addDependency doc deps
  where
-  go env cfg (dep, mRange) = do
-    range <- resolveRange env dep mRange
-    logDebug loggingService $
-      "Adding dependency: " <> dep <> " => " <> renderVersionRange range
-    pure $ PackageConfig.addDependency dep range cfg
-
   -- If a range isn't specified, default to "^X.Y.Z", where "X.Y.Z" is the
   -- most recent version on Hackage currently.
-  resolveRange env dep = \case
-    Just range -> pure range
-    -- TODO: ensure version is compatible with other bounds
-    -- TODO: if package already in deps, update the version
-    Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getPreferredVersion env dep
+  resolveRange env (dep, mRange) = do
+    range <-
+      case mRange of
+        Just range -> pure range
+        -- TODO: ensure version is compatible with other bounds
+        -- TODO: if package already in deps, update the version
+        Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getPreferredVersion env dep
+    logDebug loggingService $
+      "Adding dependency: " <> dep <> " => " <> renderVersionRange range
+    pure (dep, range)
 
-  foldlM f z = \case
-    [] -> pure z
-    x : xs -> do
-      result <- f z x
-      foldlM f result xs
+addDependency :: KDL.Document -> (PackageName, VersionRange) -> KDL.Document
+addDependency doc (name, versionRange) =
+  doc.modifyNodesMatching
+    ("package" KDL.> "dependencies" KDL.> KDL.element name)
+    $ \node ->
+      node
+        { KDL.entries =
+            [ KDL.Entry
+                { name = Nothing
+                , value =
+                    KDL.Value
+                      { ann = Nothing
+                      , data_ = KDL.String $ renderVersionRange versionRange
+                      , ext = KDL.def
+                      }
+                , ext = KDL.def
+                }
+            ]
+        }
