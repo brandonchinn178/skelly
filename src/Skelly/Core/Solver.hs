@@ -27,6 +27,7 @@ module Skelly.Core.Solver (
   Env (..),
   SolvedPackage (..),
   run,
+  PackageDeps,
 
   -- * Helpers
   sortVersions,

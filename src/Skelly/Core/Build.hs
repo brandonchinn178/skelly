@@ -23,6 +23,7 @@ module Skelly.Core.Build (
 import Control.Monad (forM_, unless)
 import Data.Bifunctor (first)
 import Data.Either (partitionEithers)
+import Data.Graph qualified as Graph
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
@@ -38,12 +39,10 @@ import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
-
--- import Skelly.Core.Parse (parseImports)
+import Skelly.Core.Parse (parseImports)
 import Skelly.Core.Paths (packageDistDir, skellyCacheDir)
 import Skelly.Core.Service (IsService (..), loadService)
-
--- import Skelly.Core.Solver qualified as Solver
+import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Types.PackageId qualified as PackageId
 import Skelly.Core.Types.Version (
@@ -64,16 +63,15 @@ import System.Exit (ExitCode (..), exitWith)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Unsafe (unsafePerformIO)
 import System.Process qualified as Process
-
--- import UnliftIO.Async (pooledForConcurrently)
+import UnliftIO.Async (pooledForConcurrently)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import UnliftIO.Temporary (withSystemTempDirectory)
 
 data Service = Service
   { loggingService :: Logging.Service
   , pkgIndexService :: PackageIndex.Service
-  , -- , solveDeps :: CompilerEnv -> Solver.PackageDeps -> IO [PackageId]
-    loadPackageConfig :: IO PackageConfig
+  , solveDeps :: Solver.Env -> Solver.PackageDeps -> IO [PackageId]
+  , loadPackageConfig :: IO PackageConfig
   , loadCompilerEnv :: Version -> IO CompilerEnv
   }
 
@@ -86,12 +84,12 @@ instance
   initService = do
     loggingService <- loadService
     pkgIndexService <- loadService
-    -- solverService <- loadService
+    solverService <- loadService
     pure
       Service
         { loggingService
-        , -- , solveDeps = Solver.run solverService
-          pkgIndexService
+        , solveDeps = fmap (error "unimplemented") . Solver.run solverService
+        , pkgIndexService
         , loadPackageConfig = PackageConfig.load loggingService
         , loadCompilerEnv = CompilerEnv.loadCompilerEnv
         }
@@ -146,7 +144,8 @@ run service@Service{..} Options{..} = do
 
   -- resolve targets
   -- TODO: tests
-  let resolveTargets' components targets = do
+  let resolveTargets' :: Map Text a -> Targets -> IO (Map Text a)
+      resolveTargets' components targets = do
         let (components', unknownTargets) = resolveTargets components targets
         unless (null unknownTargets) $
           logWarn loggingService $
@@ -249,6 +248,8 @@ run service@Service{..} Options{..} = do
  where
   -- TODO: get actual directory where the hsproject.toml file is
   projectDir = unsafePerformIO getCurrentDirectory
+  -- TODO: sort modules
+  _ = sortModules
 
 data DepInfo = DepInfo
   { depSrcDirs :: [FilePath]
@@ -314,29 +315,29 @@ findModulesUnder dir = mapMaybe parseModulePath' <$> listFiles defaultOpts dir
  where
   parseModulePath' file = (,dir </> file) <$> parseModulePath file
 
--- -- | Sort modules, where latter modules may import earlier modules.
--- sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, FilePath)]
--- sortModules loggingService modulesWithPath = do
---   moduleToImports <-
---     pooledForConcurrently modulesWithPath $ \(moduleName, path) -> do
---       let logProgress =
---             logDebug
---               ( Logging.addContext (renderModuleName moduleName)
---                   . Logging.addContext "parse-imports"
---                   $ loggingService
---               )
---       logProgress "Running..."
---       imports <- parseImports path <$> Text.readFile path
---       logProgress "Finished"
---       pure ((moduleName, path), imports)
---
---   let (modulesGraph, fromVertex, _) =
---         Graph.graphFromEdges
---           [ (path, moduleName, imports)
---           | ((moduleName, path), imports) <- moduleToImports
---           ]
---   let getModuleInfo v = let (path, moduleName, _) = fromVertex v in (moduleName, path)
---   pure $ map getModuleInfo $ Graph.reverseTopSort modulesGraph
+-- | Sort modules, where latter modules may import earlier modules.
+sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, FilePath)]
+sortModules loggingService modulesWithPath = do
+  moduleToImports <-
+    pooledForConcurrently modulesWithPath $ \(moduleName, path) -> do
+      let logProgress =
+            logDebug
+              ( Logging.addContext (renderModuleName moduleName)
+                  . Logging.addContext "parse-imports"
+                  $ loggingService
+              )
+      logProgress "Running..."
+      imports <- parseImports path <$> Text.readFile path
+      logProgress "Finished"
+      pure ((moduleName, path), imports)
+
+  let (modulesGraph, fromVertex, _) =
+        Graph.graphFromEdges
+          [ (path, moduleName, imports)
+          | ((moduleName, path), imports) <- moduleToImports
+          ]
+  let getModuleInfo v = let (path, moduleName, _) = fromVertex v in (moduleName, path)
+  pure $ map getModuleInfo $ Graph.reverseTopSort modulesGraph
 
 {----- GHC -----}
 
