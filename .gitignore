@@ -1,2 +1,8 @@
 .DS_Store
 dist/
+
+# Generated from hspackage.kdl
+/skelly.cabal
+
+# Cabal droppings, if HLS is running
+dist-newstyle/

@@ -35,7 +35,8 @@ def init_build_dir():
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
     hs_package = HsPackage.parse(TOP / "hspackage.toml")
-    hs_package.write_cabal(BUILD_DIR / "skelly.cabal")
+    hs_package.write_cabal(TOP / "skelly.cabal")
+    (TOP / "skelly.cabal").copy(BUILD_DIR / "skelly.cabal")
 
     ghc_version = hs_package.find_appropriate_ghc_version()
     subprocess.run(
@@ -134,6 +135,7 @@ class HsPackage(NamedTuple):
             config = tomllib.load(f)
         return cls(config=config)
 
+    # TODO: Replace with `skelly gen-cabal`
     def write_cabal(self, file: Path) -> None:
         # header + metadata
         name = self.config["skelly"]["package"]["name"]
