@@ -33,15 +33,15 @@ import Data.Text.Lazy qualified as TextL
 import Data.Text.Lazy.Encoding qualified as TextL
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Types.PackageId (PackageName)
-import Skelly.Core.Types.Version (Version, CompiledVersionRange)
+import Skelly.Core.Types.Version (CompiledVersionRange, Version)
 import UnliftIO.Exception (throwIO)
 
 data LockFile = LockFile
   { ghcVersion :: Version
   , packages :: Map PackageName LockFilePackageInfo
-    -- ^ The packages in the workspace and their dependencies
+  -- ^ The packages in the workspace and their dependencies
   , dependencies :: Map PackageName LockFileDepInfo
-    -- ^ The resolved information of all transitive dependencies
+  -- ^ The resolved information of all transitive dependencies
   }
   deriving (Show, Eq)
 
@@ -119,34 +119,34 @@ encodeLockFile LockFile{..} =
       , ("packages", encodeMap encodeLockFilePackageInfo packages)
       , ("dependencies", encodeMap encodeLockFileDepInfo dependencies)
       ]
-  where
-    encode :: Aeson.ToJSON a => a -> Json
-    encode = JsonRaw . TextL.toStrict . TextL.decodeUtf8 . Aeson.encode
+ where
+  encode :: (Aeson.ToJSON a) => a -> Json
+  encode = JsonRaw . TextL.toStrict . TextL.decodeUtf8 . Aeson.encode
 
-    encodeMap encodeVal m = JsonObject [(k, encodeVal v) | (k, v) <- Map.toAscList m]
-    encodeLockFilePackageInfo LockFilePackageInfo{..} =
-      JsonObject
-        [ ("dependencies", encodeMap encode deps)
-        ]
-    encodeLockFileDepInfo LockFileDepInfo{..} =
-      JsonObject
-        [ ("version", encode version)
-        , ("integrity", encode $ encodeDigest integrity)
-        , ("dependencies", encodeMap encode deps)
-        ]
+  encodeMap encodeVal m = JsonObject [(k, encodeVal v) | (k, v) <- Map.toAscList m]
+  encodeLockFilePackageInfo LockFilePackageInfo{..} =
+    JsonObject
+      [ ("dependencies", encodeMap encode deps)
+      ]
+  encodeLockFileDepInfo LockFileDepInfo{..} =
+    JsonObject
+      [ ("version", encode version)
+      , ("integrity", encode $ encodeDigest integrity)
+      , ("dependencies", encodeMap encode deps)
+      ]
 
-    indent lvl = Text.replicate (lvl * 4) " "
-    render lvl = \case
-      JsonObject kvs ->
-        Text.concat
-          [ "{"
-          , Text.intercalate "," $
-              [ "\n" <> indent (lvl + 1) <> "\"" <> k <> "\": " <> render (lvl + 1) v
-              | (k, v) <- kvs
-              ]
-          , "\n" <> indent lvl <> "}"
-          ]
-      JsonRaw s -> s
+  indent lvl = Text.replicate (lvl * 4) " "
+  render lvl = \case
+    JsonObject kvs ->
+      Text.concat
+        [ "{"
+        , Text.intercalate "," $
+            [ "\n" <> indent (lvl + 1) <> "\"" <> k <> "\": " <> render (lvl + 1) v
+            | (k, v) <- kvs
+            ]
+        , "\n" <> indent lvl <> "}"
+        ]
+    JsonRaw s -> s
 
 data Json = JsonObject [(Text, Json)] | JsonRaw Text
 
@@ -157,6 +157,6 @@ encodeDigest digest = "sha256=" <> (Text.pack . show) digest
 
 decodeDigest :: Text -> Maybe (Digest SHA256)
 decodeDigest = Text.stripPrefix "sha256=" >=> decodeBase16 >=> Crypto.digestFromByteString
-  where
-    decodeBase16 = eitherToMaybe . Base16.decode . Text.encodeUtf8
-    eitherToMaybe = either (const Nothing) Just
+ where
+  decodeBase16 = eitherToMaybe . Base16.decode . Text.encodeUtf8
+  eitherToMaybe = either (const Nothing) Just

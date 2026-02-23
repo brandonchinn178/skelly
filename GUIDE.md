@@ -166,7 +166,7 @@ If you've manually edited your dependencies, you can run `skelly lock`, which wi
 
 If you're building a library, you'll still get a `skelly.lock` file, to ensure reproducible builds in development (and you'll want to commit this file also). But you'll also want to test that your library works for _all_ the bounds you've specified in your dependencies.
 
-Skelly commands also take in a `--unlock` flag, which will 
+Skelly commands also take in a `--unlock` flag, which will TODO
 
 ## Workflow
 

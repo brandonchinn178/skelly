@@ -24,9 +24,9 @@ module Skelly.Core.Utils.Cabal (
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as Lazy (ByteString)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Maybe (fromMaybe, listToMaybe, mapMaybe, maybeToList)
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe, listToMaybe, mapMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Version qualified as Version
@@ -58,12 +58,12 @@ parsePreferredVersions package =
   listToMaybe
     . mapMaybe go
     . Cabal.parsePreferredVersionsWarnings
-  where
-    go = \case
-      Right (Cabal.Dependency pkg range _)
-        | Cabal.unPackageName pkg == Text.unpack package ->
-            Just $ fromCabalVersionRange range
-      _ -> Nothing
+ where
+  go = \case
+    Right (Cabal.Dependency pkg range _)
+      | Cabal.unPackageName pkg == Text.unpack package ->
+          Just $ fromCabalVersionRange range
+    _ -> Nothing
 
 data PackageInfo = PackageInfo
   { packageSrcDirs :: [FilePath]
@@ -88,7 +88,8 @@ parseCabalFile flags packageId input = do
             error $ "Could not resolve conditions: " ++ show pd
       Left (_cabalVersion, errors) ->
         Left . BadCabalFile packageId $
-          Text.unlines . map renderPError . NonEmpty.toList $ errors
+          Text.unlines . map renderPError . NonEmpty.toList $
+            errors
   let lib = fromMaybe Cabal.emptyLibrary (Cabal.library pkg)
 
   pure
@@ -105,39 +106,39 @@ parseCabalFile flags packageId input = do
             , map (Text.pack . Cabal.prettyShow) . maybeToList . Cabal.defaultLanguage . Cabal.libBuildInfo $ lib
             ]
       }
-  where
-    renderPError = Text.pack . Cabal.showPError (Text.unpack $ renderPackageId packageId)
+ where
+  renderPError = Text.pack . Cabal.showPError (Text.unpack $ renderPackageId packageId)
 
-    resolveConditions =
-      Cabal.finalizePD
-        flagAssignment
-        Cabal.ComponentRequestedSpec
-          { testsRequested = False
-          , benchmarksRequested = False
-          }
-        (const True)
-        platform
-        compilerInfo
-        []
-
-    flagAssignment =
-      Cabal.mkFlagAssignment
-        [ (Cabal.mkFlagName (Text.unpack flag), enabled)
-        | (flag, enabled) <- flags
-        ]
-
-    -- TODO: read "Target platform" from `ghc --info` (store in CompilerEnv)
-    platform = Cabal.buildPlatform
-
-    -- TODO: get actual GHC version from CompilerEnv
-    compilerInfo =
-      Cabal.CompilerInfo
-        { compilerInfoId = Cabal.CompilerId Cabal.GHC (Cabal.mkVersion [9, 10, 1])
-        , compilerInfoAbiTag = Cabal.NoAbiTag
-        , compilerInfoCompat = Nothing
-        , compilerInfoLanguages = Nothing
-        , compilerInfoExtensions = Nothing
+  resolveConditions =
+    Cabal.finalizePD
+      flagAssignment
+      Cabal.ComponentRequestedSpec
+        { testsRequested = False
+        , benchmarksRequested = False
         }
+      (const True)
+      platform
+      compilerInfo
+      []
+
+  flagAssignment =
+    Cabal.mkFlagAssignment
+      [ (Cabal.mkFlagName (Text.unpack flag), enabled)
+      | (flag, enabled) <- flags
+      ]
+
+  -- TODO: read "Target platform" from `ghc --info` (store in CompilerEnv)
+  platform = Cabal.buildPlatform
+
+  -- TODO: get actual GHC version from CompilerEnv
+  compilerInfo =
+    Cabal.CompilerInfo
+      { compilerInfoId = Cabal.CompilerId Cabal.GHC (Cabal.mkVersion [9, 10, 1])
+      , compilerInfoAbiTag = Cabal.NoAbiTag
+      , compilerInfoCompat = Nothing
+      , compilerInfoLanguages = Nothing
+      , compilerInfoExtensions = Nothing
+      }
 
 fromCabalVersion :: Cabal.Version -> Version
 fromCabalVersion = makeVersion . Cabal.versionNumbers

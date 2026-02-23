@@ -1,9 +1,9 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Skelly.Core.PackageConfig (
   -- * Types
@@ -101,66 +101,66 @@ decodeParsedConfig = do
     <*> pure packageDeps
     <*> decodeLibraries packageDeps
     <*> decodeBinaries packageDeps
-  where
-    decodeVersion :: TOML.Decoder Version
-    decodeVersion = TOML.makeDecoder $ \v ->
-      case v of
-        TOML.String s ->
-          case parseVersion s of
-            Just version -> pure version
-            Nothing -> TOML.invalidValue "Invalid version" v
-        _ -> TOML.typeMismatch v
+ where
+  decodeVersion :: TOML.Decoder Version
+  decodeVersion = TOML.makeDecoder $ \v ->
+    case v of
+      TOML.String s ->
+        case parseVersion s of
+          Just version -> pure version
+          Nothing -> TOML.invalidValue "Invalid version" v
+      _ -> TOML.typeMismatch v
 
-    decodeVersionRange :: TOML.Decoder VersionRange
-    decodeVersionRange = TOML.makeDecoder $ \v ->
-      case v of
-        TOML.String s ->
-          case parseVersionRange s of
-            Just versionRange -> pure versionRange
-            Nothing -> TOML.invalidValue "Invalid version range" v
-        _ -> TOML.typeMismatch v
+  decodeVersionRange :: TOML.Decoder VersionRange
+  decodeVersionRange = TOML.makeDecoder $ \v ->
+    case v of
+      TOML.String s ->
+        case parseVersionRange s of
+          Just versionRange -> pure versionRange
+          Nothing -> TOML.invalidValue "Invalid version range" v
+      _ -> TOML.typeMismatch v
 
-    decodeDependencies :: TOML.Decoder DependencyMap
-    decodeDependencies = TOML.makeDecoder $ \case
-      TOML.Table table -> traverse (TOML.runDecoder decodeVersionRange) table
-      v -> TOML.typeMismatch v
+  decodeDependencies :: TOML.Decoder DependencyMap
+  decodeDependencies = TOML.makeDecoder $ \case
+    TOML.Table table -> traverse (TOML.runDecoder decodeVersionRange) table
+    v -> TOML.typeMismatch v
 
-    -- TODO: parse from [[skelly.lib]]
-    -- TODO: get deps in [skelly.lib.dependencies] if present
-    -- TODO: default name: same name as package
-    -- TODO: error if duplicate names
-    decodeLibraries :: DependencyMap -> TOML.Decoder (Map PackageName LibraryInfo)
-    decodeLibraries deps =
-      pure . Map.singleton "skelly" $
-        LibraryInfo
-          { sharedInfo =
-              SharedInfo
-                { sourceDirs = ["src"]
-                , dependencies = deps
-                }
-          }
+  -- TODO: parse from [[skelly.lib]]
+  -- TODO: get deps in [skelly.lib.dependencies] if present
+  -- TODO: default name: same name as package
+  -- TODO: error if duplicate names
+  decodeLibraries :: DependencyMap -> TOML.Decoder (Map PackageName LibraryInfo)
+  decodeLibraries deps =
+    pure . Map.singleton "skelly" $
+      LibraryInfo
+        { sharedInfo =
+            SharedInfo
+              { sourceDirs = ["src"]
+              , dependencies = deps
+              }
+        }
 
-    -- TODO: parse from [[skelly.bin]]
-    -- TODO: default name: same name as package
-    -- TODO: default mainFile:
-    --         if one bin => src/Main.hs
-    --         if directory exists => src/bin/<name>/Main.hs
-    --         otherwise => src/bin/<name>.hs
-    -- TODO: default sourceDirs:
-    --         if directory exists => [src/bin/<name>/]
-    --         otherwise => []
-    -- TODO: error if duplicate names
-    decodeBinaries :: DependencyMap -> TOML.Decoder (Map PackageName BinaryInfo)
-    decodeBinaries deps =
-      pure . Map.singleton "skelly" $
-        BinaryInfo
-          { sharedInfo =
-              SharedInfo
-                { sourceDirs = []
-                , dependencies = deps
-                }
-          , mainFile = "src/Main.hs"
-          }
+  -- TODO: parse from [[skelly.bin]]
+  -- TODO: default name: same name as package
+  -- TODO: default mainFile:
+  --         if one bin => src/Main.hs
+  --         if directory exists => src/bin/<name>/Main.hs
+  --         otherwise => src/bin/<name>.hs
+  -- TODO: default sourceDirs:
+  --         if directory exists => [src/bin/<name>/]
+  --         otherwise => []
+  -- TODO: error if duplicate names
+  decodeBinaries :: DependencyMap -> TOML.Decoder (Map PackageName BinaryInfo)
+  decodeBinaries deps =
+    pure . Map.singleton "skelly" $
+      BinaryInfo
+        { sharedInfo =
+            SharedInfo
+              { sourceDirs = []
+              , dependencies = deps
+              }
+        , mainFile = "src/Main.hs"
+        }
 
 {----- Getters -----}
 
@@ -188,8 +188,8 @@ packageBinaries = getParsedField $ \ParsedPackageConfig{_packageBinaries = x} ->
 allDependencies :: PackageConfig -> DependencyMap
 allDependencies config =
   Map.unionsWith VersionRangeAnd . concat $
-    [ [ dependencies | LibraryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageLibraries config ]
-    , [ dependencies | BinaryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageBinaries config ]
+    [ [dependencies | LibraryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageLibraries config]
+    , [dependencies | BinaryInfo{sharedInfo = SharedInfo{dependencies}} <- Map.elems $ packageBinaries config]
     ]
 
 {----- Updaters -----}
@@ -210,5 +210,5 @@ addDependency dep versionRange config@PackageConfig{..} =
           (TOML.String $ renderVersionRange versionRange)
           rawConfig
     }
-  where
-    ParsedPackageConfig{..} = parsedConfig
+ where
+  ParsedPackageConfig{..} = parsedConfig

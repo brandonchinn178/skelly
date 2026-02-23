@@ -45,7 +45,7 @@ data Options = Options
   { logLevel :: LogLevel
   }
 
-instance Has Options opts => IsService opts Service where
+instance (Has Options opts) => IsService opts Service where
   initService = do
     options <- getOpts
     let doLog level msg =

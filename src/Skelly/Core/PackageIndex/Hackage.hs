@@ -6,7 +6,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
-{- |
+{-|
 Implements a PackageIndex for Hackage, or a mirror of Hackage.
 -}
 module Skelly.Core.PackageIndex.Hackage (
@@ -37,8 +37,8 @@ import Skelly.Core.Types.PackageId (
   renderPackageId,
  )
 import Skelly.Core.Types.Version (
-  Version,
   CompiledVersionRange,
+  Version,
   compileRange,
   renderVersionRange,
   wholeRange,
@@ -68,14 +68,14 @@ initServiceHackage service HackageOptions{..} =
   Service
     { withPackageIndex = \f -> Hackage.withRepo service hackageRepoOpts (f . initPackageIndex)
     }
-  where
-    hackageRepoOpts =
-      Hackage.RepoOptions
-        { hackageURI
-        , hackageKeys
-        , hackageKeyThreshold
-        , hackageCacheRoot = skellyCacheDir </> "package-index"
-        }
+ where
+  hackageRepoOpts =
+    Hackage.RepoOptions
+      { hackageURI
+      , hackageKeys
+      , hackageKeyThreshold
+      , hackageCacheRoot = skellyCacheDir </> "package-index"
+      }
 
 initPackageIndex :: Hackage.Repository -> PackageIndex
 initPackageIndex repo =
@@ -84,16 +84,16 @@ initPackageIndex repo =
     , updateMetadata = Hackage.updateMetadata repo
     , downloadPackage = downloadPackage
     }
-  where
-    downloadPackage pkgId dest = do
-      let destTarGz = dest </> Text.unpack (renderPackageId pkgId <> ".tar.gz")
-      Hackage.downloadPackageTarGz repo pkgId destTarGz
-      Tar.unpack dest . Tar.read . GZip.decompress =<< ByteStringL.readFile destTarGz
+ where
+  downloadPackage pkgId dest = do
+    let destTarGz = dest </> Text.unpack (renderPackageId pkgId <> ".tar.gz")
+    Hackage.downloadPackageTarGz repo pkgId destTarGz
+    Tar.unpack dest . Tar.read . GZip.decompress =<< ByteStringL.readFile destTarGz
 
 initPackageIndexCursor ::
-  Hackage.Repository
-  -> Hackage.IndexCallbacks
-  -> IO PackageIndexCursor
+  Hackage.Repository ->
+  Hackage.IndexCallbacks ->
+  IO PackageIndexCursor
 initPackageIndexCursor repo callbacks = do
   ptrs <- syncAndLoadIndexPtrs repo callbacks
   pure
@@ -157,9 +157,9 @@ instance Serialise IndexPtrs where
       _ -> fail "Invalid IndexPtrs encoding"
 
 syncAndLoadIndexPtrs ::
-  Hackage.Repository
-  -> Hackage.IndexCallbacks
-  -> IO IndexPtrs
+  Hackage.Repository ->
+  Hackage.IndexCallbacks ->
+  IO IndexPtrs
 syncAndLoadIndexPtrs repo Hackage.IndexCallbacks{..} = do
   root <- Hackage.getRepoRoot repo
   let cachedIndexInfoPath = root </> "skelly-index.cache"
@@ -182,54 +182,54 @@ syncAndLoadIndexPtrs repo Hackage.IndexCallbacks{..} = do
       pure updatedIndexInfo
     else do
       pure cachedIndexInfo
-  where
-    updateIndex indexInfo@IndexPtrs{nextEntry = ptr} = do
-      (Hackage.Some Hackage.IndexEntry{..}, mNextEntry) <- indexLookupEntry ptr
+ where
+  updateIndex indexInfo@IndexPtrs{nextEntry = ptr} = do
+    (Hackage.Some Hackage.IndexEntry{..}, mNextEntry) <- indexLookupEntry ptr
 
-      -- add entry from index
-      let indexInfo' =
-            case indexEntryPathParsed of
-              Just (Hackage.IndexPkgCabal Cabal.PackageIdentifier{..}) ->
-                indexInfo
-                  { packagePtrs =
-                      initAndAdjust
-                        (Map.insert (Cabal.fromCabalVersion pkgVersion) ptr)
-                        (Cabal.fromPackageName pkgName)
-                        (packagePtrs indexInfo)
-                  }
-              Just (Hackage.IndexPkgPrefs name) ->
-                indexInfo
-                  { preferredVersionsPtrs =
-                      Map.insert
-                        (Cabal.fromPackageName name)
-                        ptr
-                        (preferredVersionsPtrs indexInfo)
-                  }
-              Just (Hackage.IndexPkgMetadata _) ->
-                indexInfo
-              Nothing ->
-                indexInfo
+    -- add entry from index
+    let indexInfo' =
+          case indexEntryPathParsed of
+            Just (Hackage.IndexPkgCabal Cabal.PackageIdentifier{..}) ->
+              indexInfo
+                { packagePtrs =
+                    initAndAdjust
+                      (Map.insert (Cabal.fromCabalVersion pkgVersion) ptr)
+                      (Cabal.fromPackageName pkgName)
+                      (packagePtrs indexInfo)
+                }
+            Just (Hackage.IndexPkgPrefs name) ->
+              indexInfo
+                { preferredVersionsPtrs =
+                    Map.insert
+                      (Cabal.fromPackageName name)
+                      ptr
+                      (preferredVersionsPtrs indexInfo)
+                }
+            Just (Hackage.IndexPkgMetadata _) ->
+              indexInfo
+            Nothing ->
+              indexInfo
 
-      -- continue to the next entry, or exit
-      case mNextEntry of
-        Just nextEntry -> updateIndex indexInfo'{nextEntry = nextEntry}
-        Nothing -> pure indexInfo'{nextEntry = Hackage.directoryNext indexDirectory}
+    -- continue to the next entry, or exit
+    case mNextEntry of
+      Just nextEntry -> updateIndex indexInfo'{nextEntry = nextEntry}
+      Nothing -> pure indexInfo'{nextEntry = Hackage.directoryNext indexDirectory}
 
-    -- Like 'Map.adjust', except initialize missing keys with 'mempty' before updating.
-    initAndAdjust :: (Ord k, Monoid a) => (a -> a) -> k -> Map k a -> Map k a
-    initAndAdjust f = Map.alter (Just . f . fromMaybe mempty)
+  -- Like 'Map.adjust', except initialize missing keys with 'mempty' before updating.
+  initAndAdjust :: (Ord k, Monoid a) => (a -> a) -> k -> Map k a -> Map k a
+  initAndAdjust f = Map.alter (Just . f . fromMaybe mempty)
 
 getPreferredVersionRange :: Hackage.IndexCallbacks -> IndexPtrs -> PackageName -> IO (Maybe CompiledVersionRange)
 getPreferredVersionRange Hackage.IndexCallbacks{..} IndexPtrs{..} package =
   fmap join . traverse readFromIndex $ Map.lookup package preferredVersionsPtrs
-  where
-    readFromIndex ptr = do
-      Hackage.IndexEntry{indexEntryContent} <-
-        indexLookupFileEntry ptr (Hackage.IndexPkgPrefs $ Cabal.toPackageName package)
-      case Cabal.parsePreferredVersions package indexEntryContent of
-        _ | indexEntryContent == "" -> pure Nothing -- I'm guessing "" means someone removed preferences for a package?
-        Just range ->
-          case compileRange range of
-            Just preferredVersionRange -> pure $ Just preferredVersionRange
-            Nothing -> error . Text.unpack $ "Package " <> package <> " has unsatisfiable preferred versions: " <> renderVersionRange range
-        Nothing -> error . Text.unpack $ "Could not parse preferred versions for: " <> package
+ where
+  readFromIndex ptr = do
+    Hackage.IndexEntry{indexEntryContent} <-
+      indexLookupFileEntry ptr (Hackage.IndexPkgPrefs $ Cabal.toPackageName package)
+    case Cabal.parsePreferredVersions package indexEntryContent of
+      _ | indexEntryContent == "" -> pure Nothing -- I'm guessing "" means someone removed preferences for a package?
+      Just range ->
+        case compileRange range of
+          Just preferredVersionRange -> pure $ Just preferredVersionRange
+          Nothing -> error . Text.unpack $ "Package " <> package <> " has unsatisfiable preferred versions: " <> renderVersionRange range
+      Nothing -> error . Text.unpack $ "Could not parse preferred versions for: " <> package

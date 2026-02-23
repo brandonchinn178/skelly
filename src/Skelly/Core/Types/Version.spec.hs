@@ -16,9 +16,10 @@ spec = do
         , "> 1 && < 2 || > 3" --> "(> 1 && < 2) || > 3"
         , "(>= 0.3 && < 0.4)" --> ">= 0.3 && < 0.4"
         , same "(>= 0.3 && < 0.4) || (>= 0.4.1.0 && < 0.7)"
-        ] $ \(input, expected) -> do
-              it (show input <> " => " <> show expected) $ do
-                renderVersionRange (toRange input) `shouldBe` expected
+        ]
+        $ \(input, expected) -> do
+          it (show input <> " => " <> show expected) $ do
+            renderVersionRange (toRange input) `shouldBe` expected
 
     prop "parseVersionRange . renderVersionRange === Just" $ do
       (parseVersionRange . renderVersionRange) P.=== Just `shouldSatisfy` P.isoWith genVersionRange
@@ -26,9 +27,10 @@ spec = do
     describe "invalid parses" $ do
       forM_
         [ "1 &&"
-        ] $ \input -> do
-              it (show input) $ do
-                parseVersionRange input `shouldBe` Nothing
+        ]
+        $ \input -> do
+          it (show input) $ do
+            parseVersionRange input `shouldBe` Nothing
 
   describe "CompiledVersionRange" $ do
     describe "compileRange" $ do
@@ -73,9 +75,9 @@ spec = do
         , ("1.3.3", "^1.2 || ^1.5", False)
         ]
         $ \(version, range, expected) -> do
-            let op = if expected then "⊆" else "⊈"
-            it (show version <> " " <> op <> " " <> show range) $
-              inRange (toRangeC range) (toVer version) `shouldBe` expected
+          let op = if expected then "⊆" else "⊈"
+          it (show version <> " " <> op <> " " <> show range) $
+            inRange (toRangeC range) (toVer version) `shouldBe` expected
 
     describe "intersectRange" $ do
       it "correctly intersects disjunction with range excluding one" $ do
@@ -119,9 +121,10 @@ spec = do
         , ("^1.3 || ^1.2", "≥ 1.2 && < 1.4")
         , ("^1.3 || < 1 || ^1.2", "< 1 || (≥ 1.2 && < 1.4)")
         , ("*", "")
-        ] $ \(input, expected) -> do
-              it (show input <> " => " <> show expected) $ do
-                prettyCompiledRange (toRangeC input) `shouldBe` expected
+        ]
+        $ \(input, expected) -> do
+          it (show input <> " => " <> show expected) $ do
+            prettyCompiledRange (toRangeC input) `shouldBe` expected
 
 toVer :: Text -> Version
 toVer s =
@@ -143,15 +146,15 @@ toRangeC s =
 
 genVersionRange :: Gen VersionRange
 genVersionRange = Gen.choice [pure AnyVersion, go]
-  where
-    go =
-      Gen.recursive
-        Gen.choice
-        [ VersionWithOp <$> genVersionOp <*> genVersion
-        ]
-        [ Gen.subterm2 go go VersionRangeAnd
-        , Gen.subterm2 go go VersionRangeOr
-        ]
+ where
+  go =
+    Gen.recursive
+      Gen.choice
+      [ VersionWithOp <$> genVersionOp <*> genVersion
+      ]
+      [ Gen.subterm2 go go VersionRangeAnd
+      , Gen.subterm2 go go VersionRangeOr
+      ]
 
 genVersionOp :: Gen VersionOp
 genVersionOp =

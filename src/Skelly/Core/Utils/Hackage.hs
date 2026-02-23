@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{- |
+{-|
 Utilities for querying Hackage, or a server running a Hackage mirror.
 
 Fundamentally a wrapper around the hackage-security package.
@@ -90,7 +90,9 @@ data Service = Service
 instance
   ( IsService opts Logging.Service
   , IsService opts HTTP.Service
-  ) => IsService opts Service where
+  ) =>
+  IsService opts Service
+  where
   initService = do
     loggingService <- loadService
     httpLib <- mkHttpLib <$> loadService
@@ -168,32 +170,33 @@ withRepoNoBootstrap Service{..} RepoOptions{..} =
     Hackage.hackageRepoLayout
     Hackage.hackageIndexLayout
     (mkHackageLogger loggingService)
-  where
-    hackageHost = URI.uriRegName . fromMaybe URI.nullURIAuth . URI.uriAuthority $ hackageURI
-    hackageCache =
-      Cache.Cache
-        { cacheRoot = Path.fromAbsoluteFilePath hackageCacheRoot Path.</> Path.fragment hackageHost
-        , cacheLayout =
-            Hackage.CacheLayout
-              { cacheLayoutRoot = relPath "root.json"
-              , cacheLayoutTimestamp = relPath "timestamp.json"
-              , cacheLayoutSnapshot = relPath "snapshot.json"
-              , cacheLayoutMirrors = relPath "mirrors.json"
-              , cacheLayoutIndexTar = relPath "01-index.tar"
-              , cacheLayoutIndexIdx = relPath "01-index.tar.idx"
-              , cacheLayoutIndexTarGz = relPath "01-index.tar.gz"
-              }
-        }
+ where
+  hackageHost = URI.uriRegName . fromMaybe URI.nullURIAuth . URI.uriAuthority $ hackageURI
+  hackageCache =
+    Cache.Cache
+      { cacheRoot = Path.fromAbsoluteFilePath hackageCacheRoot Path.</> Path.fragment hackageHost
+      , cacheLayout =
+          Hackage.CacheLayout
+            { cacheLayoutRoot = relPath "root.json"
+            , cacheLayoutTimestamp = relPath "timestamp.json"
+            , cacheLayoutSnapshot = relPath "snapshot.json"
+            , cacheLayoutMirrors = relPath "mirrors.json"
+            , cacheLayoutIndexTar = relPath "01-index.tar"
+            , cacheLayoutIndexIdx = relPath "01-index.tar.idx"
+            , cacheLayoutIndexTarGz = relPath "01-index.tar.gz"
+            }
+      }
 
-    relPath :: FilePath -> Path.Path root
-    relPath = Path.rootPath . Path.fragment
+  relPath :: FilePath -> Path.Path root
+  relPath = Path.rootPath . Path.fragment
 
 runBootstrap :: RepoOptions -> Repository -> IO ()
-runBootstrap RepoOptions{..} repo = wrapHackageErrors $
-  Hackage.bootstrap
-    repo
-    (map (Hackage.KeyId . Text.unpack) hackageKeys)
-    (Hackage.KeyThreshold $ fromIntegral hackageKeyThreshold)
+runBootstrap RepoOptions{..} repo =
+  wrapHackageErrors $
+    Hackage.bootstrap
+      repo
+      (map (Hackage.KeyId . Text.unpack) hackageKeys)
+      (Hackage.KeyThreshold $ fromIntegral hackageKeyThreshold)
 
 updateMetadata :: Repository -> IO ()
 updateMetadata repo = wrapHackageErrors $ do
@@ -211,15 +214,15 @@ whenMetadataExpired repo action = do
   when expired $ do
     action
     Text.writeFile metadataLastCheck (Text.pack $ show now)
-  where
-    expiry = 3600 * 24 :: NominalDiffTime -- update metadata once per day
-    isExpired metadataLastCheck now =
-      tryAny (Text.readFile metadataLastCheck) >>= \case
-        Right content
-          | Just lastCheck <- readMaybe $ Text.unpack content
-          , lastCheck > addUTCTime (-1 * expiry) now ->
-              pure False
-        _ -> pure True
+ where
+  expiry = 3600 * 24 :: NominalDiffTime -- update metadata once per day
+  isExpired metadataLastCheck now =
+    tryAny (Text.readFile metadataLastCheck) >>= \case
+      Right content
+        | Just lastCheck <- readMaybe $ Text.unpack content
+        , lastCheck > addUTCTime (-1 * expiry) now ->
+            pure False
+      _ -> pure True
 
 downloadPackageTarGz :: Repository -> PackageId -> FilePath -> IO ()
 downloadPackageTarGz repo packageId dest = wrapHackageErrors $ do
@@ -257,65 +260,65 @@ mkHttpLib httpService =
             (toResponseHeaders $ HTTP.responseHeaders resp)
             (HTTP.responseBody resp)
     }
-  where
-    wrapErrors :: (Throws Hackage.SomeRemoteError) => IO a -> IO a
-    wrapErrors = handle (throwChecked . Hackage.SomeRemoteError @HTTP.HttpException)
+ where
+  wrapErrors :: (Throws Hackage.SomeRemoteError) => IO a -> IO a
+  wrapErrors = handle (throwChecked . Hackage.SomeRemoteError @HTTP.HttpException)
 
-    mkRequest uri headers = do
-      req <- HTTP.requestFromURI uri
-      pure
-        . HTTP.setRequestCheckStatus
-        $ req { HTTP.requestHeaders = headers }
+  mkRequest uri headers = do
+    req <- HTTP.requestFromURI uri
+    pure
+      . HTTP.setRequestCheckStatus
+      $ req{HTTP.requestHeaders = headers}
 
-    fromRequestHeaders headers =
-      flip map headers $ \case
-        HttpLib.HttpRequestMaxAge0 -> (HTTP.hCacheControl, "max-age=0")
-        HttpLib.HttpRequestNoTransform -> (HTTP.hCacheControl, "no-transform")
+  fromRequestHeaders headers =
+    flip map headers $ \case
+      HttpLib.HttpRequestMaxAge0 -> (HTTP.hCacheControl, "max-age=0")
+      HttpLib.HttpRequestNoTransform -> (HTTP.hCacheControl, "no-transform")
 
-    toResponseHeaders headers =
-      catMaybes
-        [ case lookup HTTP.hAcceptRanges headers of
-            Just "bytes" -> Just HttpLib.HttpResponseAcceptRangesBytes
-            _ -> Nothing
-        ]
+  toResponseHeaders headers =
+    catMaybes
+      [ case lookup HTTP.hAcceptRanges headers of
+          Just "bytes" -> Just HttpLib.HttpResponseAcceptRangesBytes
+          _ -> Nothing
+      ]
 
-    toResponseStatus status =
-      case HTTP.statusCode status of
-        200 -> Just HttpLib.HttpStatus200OK
-        206 -> Just HttpLib.HttpStatus206PartialContent
-        _ -> Nothing
+  toResponseStatus status =
+    case HTTP.statusCode status of
+      200 -> Just HttpLib.HttpStatus200OK
+      206 -> Just HttpLib.HttpStatus206PartialContent
+      _ -> Nothing
 
-    withResponseChecked ::
-      (Throws Hackage.SomeRemoteError) =>
-      HTTP.Request
-      -> (HTTP.Response HTTP.BodyReader -> IO a)
-      -> IO a
-    withResponseChecked req f =
-      HTTP.withResponse httpService req f >>= \case
-        Left e -> throwChecked $ Hackage.SomeRemoteError e
-        Right x -> pure x
+  withResponseChecked ::
+    (Throws Hackage.SomeRemoteError) =>
+    HTTP.Request ->
+    (HTTP.Response HTTP.BodyReader -> IO a) ->
+    IO a
+  withResponseChecked req f =
+    HTTP.withResponse httpService req f >>= \case
+      Left e -> throwChecked $ Hackage.SomeRemoteError e
+      Right x -> pure x
 
-    -- Accept bounds with exclusive upper bound.
-    -- Content-Range header uses inclusive rather than exclusive bounds.
-    -- See <http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html>
-    mkRangeHeader (from, upTo) = Char8.pack $ "bytes=" <> show from <> "-" <> show (upTo - 1)
+  -- Accept bounds with exclusive upper bound.
+  -- Content-Range header uses inclusive rather than exclusive bounds.
+  -- See <http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html>
+  mkRangeHeader (from, upTo) = Char8.pack $ "bytes=" <> show from <> "-" <> show (upTo - 1)
 
 mkHackageLogger :: Logging.Service -> Hackage.LogMessage -> IO ()
 mkHackageLogger loggingService msg =
   logAt loggingService (toLogLevel msg) $
     "[Hackage] " <> Text.pack (Pretty.pretty msg)
-  where
-    toLogLevel = \case
-      Hackage.LogRootUpdated{} -> LevelDebug
-      Hackage.LogVerificationError{} -> LevelError
-      Hackage.LogDownloading{} -> LevelDebug
-      Hackage.LogUpdating{} -> LevelDebug
-      Hackage.LogSelectedMirror{} -> LevelDebug
-      Hackage.LogCannotUpdate{} -> LevelError
-      Hackage.LogMirrorFailed{} -> LevelError
-      Hackage.LogLockWait{} -> LevelDebug
-      Hackage.LogLockWaitDone{} -> LevelDebug
-      Hackage.LogUnlock{} -> LevelDebug
+ where
+  toLogLevel = \case
+    Hackage.LogRootUpdated{} -> LevelDebug
+    Hackage.LogVerificationError{} -> LevelError
+    Hackage.LogDownloading{} -> LevelDebug
+    Hackage.LogUpdating{} -> LevelDebug
+    Hackage.LogSelectedMirror{} -> LevelDebug
+    Hackage.LogCannotUpdate{} -> LevelError
+    Hackage.LogMirrorFailed{} -> LevelError
+    Hackage.LogLockWait{} -> LevelDebug
+    Hackage.LogLockWaitDone{} -> LevelDebug
+    Hackage.LogUnlock{} -> LevelDebug
 
 wrapHackageErrors ::
   ( ( Throws Hackage.VerificationError
@@ -326,11 +329,11 @@ wrapHackageErrors ::
   ) ->
   IO a
 wrapHackageErrors m =
-  id
-    $ wrap @Hackage.VerificationError
-    $ wrap @Hackage.SomeRemoteError
-    $ wrap @Hackage.InvalidPackageException
-    $ m
-  where
-    wrap :: forall e a. Exception e => (Throws e => IO a) -> IO a
-    wrap = handleChecked (throwIO . SomeHackageError . MkSomeHackageError @e)
+  id $
+    wrap @Hackage.VerificationError $
+      wrap @Hackage.SomeRemoteError $
+        wrap @Hackage.InvalidPackageException $
+          m
+ where
+  wrap :: forall e a. (Exception e) => ((Throws e) => IO a) -> IO a
+  wrap = handleChecked (throwIO . SomeHackageError . MkSomeHackageError @e)

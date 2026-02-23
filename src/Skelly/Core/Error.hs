@@ -20,8 +20,8 @@ import Skelly.Core.Types.Version (
   CompiledVersionRange,
   Version,
   VersionRange,
-  renderVersion,
   prettyCompiledRange,
+  renderVersion,
   renderVersionRange,
  )
 
@@ -33,7 +33,8 @@ data SkellyError
   | PackageIdNotFound PackageId
   | NoValidVersions PackageName [Version] CompiledVersionRange
   | BadCabalFile PackageId Text
-  | DependencyResolutionFailure -- ^ TODO: add conflict info
+  | -- | TODO: add conflict info
+    DependencyResolutionFailure
   | UnsatisfiableVersionRange PackageName VersionRange
   | InvalidLockFile Text
   deriving (Show, Eq)
@@ -41,7 +42,7 @@ data SkellyError
 instance Exception SkellyError where
   displayException = Text.unpack . renderSkellyError
 
-data SomeHackageError = forall e. Exception e => MkSomeHackageError e
+data SomeHackageError = forall e. (Exception e) => MkSomeHackageError e
 
 instance Show SomeHackageError where
   show (MkSomeHackageError e) = show e

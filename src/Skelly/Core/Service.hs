@@ -16,7 +16,7 @@ module Skelly.Core.Service (
 ) where
 
 import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Trans.Class (lift  )
+import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Control.Monad.Trans.Reader qualified as Reader
 import Control.Monad.Trans.State (StateT, evalStateT)
@@ -27,7 +27,7 @@ import Data.HList qualified as HList
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
-import Data.Typeable (Typeable, TypeRep, typeRep)
+import Data.Typeable (TypeRep, Typeable, typeRep)
 
 -- TODO: Move to Skelly.Core.Service
 class (Typeable a) => IsService opts a where
@@ -35,7 +35,8 @@ class (Typeable a) => IsService opts a where
 
 newtype RegistryM opts a = RegistryM
   { unRegistryM :: ReaderT (HList opts) (StateT Registry IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO)
+  }
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 type Registry = Map TypeRep Dynamic
 
@@ -48,7 +49,7 @@ runRegistryM opts =
 
 type Has opts allOpts = HList.HOccurs opts (HList allOpts)
 
-getOpts :: Has opts allOpts => RegistryM allOpts opts
+getOpts :: (Has opts allOpts) => RegistryM allOpts opts
 getOpts = RegistryM $ Reader.asks HList.hOccurs
 
 -- | The entrypoint; load the given service with the given options.
@@ -70,5 +71,5 @@ loadService = do
       a <- initService
       RegistryM . lift $ State.modify (Map.insert repA (toDyn a))
       pure a
-  where
-    repA = typeRep (Proxy @a)
+ where
+  repA = typeRep (Proxy @a)

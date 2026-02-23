@@ -54,7 +54,9 @@ data Service = Service
 instance
   ( IsService opts Logging.Service
   , IsService opts Solver.Service
-  ) => IsService opts Service where
+  ) =>
+  IsService opts Service
+  where
   initService = do
     loggingService <- loadService
     solverService <- loadService
@@ -75,7 +77,6 @@ run service@Service{..} _ = do
 
   config <- PackageConfig.load loggingService
   packages <- fromEither $ Map.fromList <$> mapM toPackageInfo [config] -- TODO: load all configs in workspace
-
   let ghcVersion = makeVersion [9, 10, 1] -- TODO: decide version from hspackage.toml
   compilerEnv <- loadCompilerEnv ghcVersion
   let env =
@@ -101,10 +102,10 @@ run service@Service{..} _ = do
       putStrLn "Lock file updated."
     LockFileUpToDate -> do
       putStrLn "Lock file up-to-date."
-  where
-    -- TODO: get actual directory where the hsproject.toml file is
-    projectDir = unsafePerformIO getCurrentDirectory
-    lockFilePath = projectDir </> skellyLockFile
+ where
+  -- TODO: get actual directory where the hsproject.toml file is
+  projectDir = unsafePerformIO getCurrentDirectory
+  lockFilePath = projectDir </> skellyLockFile
 
 data LockFileStatus
   = LockFileOutdated (Maybe LockFile)
@@ -145,15 +146,15 @@ updateLockFile Service{..} env _ packages = do
       , packages
       , dependencies = Map.fromList dependencies
       }
-  where
-    Solver.Env{compilerEnv} = env
+ where
+  Solver.Env{compilerEnv} = env
 
-    mergeDeps =
-      maybe (throwIO DependencyResolutionFailure) pure
-        . unionsWithM intersectRange
-        . map (\LockFile.LockFilePackageInfo{deps} -> deps)
+  mergeDeps =
+    maybe (throwIO DependencyResolutionFailure) pure
+      . unionsWithM intersectRange
+      . map (\LockFile.LockFilePackageInfo{deps} -> deps)
 
-    unionsWithM :: (Monad m, Ord k) => (a -> a -> m a) -> [Map k a] -> m (Map k a)
-    unionsWithM f =
-      let f' m1 m2 = join $ f <$> m1 <*> m2
-       in sequence . Map.unionsWith f' . map (fmap pure)
+  unionsWithM :: (Monad m, Ord k) => (a -> a -> m a) -> [Map k a] -> m (Map k a)
+  unionsWithM f =
+    let f' m1 m2 = join $ f <$> m1 <*> m2
+     in sequence . Map.unionsWith f' . map (fmap pure)

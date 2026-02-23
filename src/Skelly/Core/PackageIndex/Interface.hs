@@ -18,7 +18,7 @@ module Skelly.Core.PackageIndex.Interface (
 
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Types.PackageId (PackageId, PackageName)
-import Skelly.Core.Types.Version (Version, CompiledVersionRange)
+import Skelly.Core.Types.Version (CompiledVersionRange, Version)
 import Skelly.Core.Utils.Cabal (FlagAssignment, PackageInfo (..))
 import UnliftIO.Exception (throwIO)
 
@@ -29,20 +29,20 @@ data Service = Service
 data PackageIndex = PackageIndex
   { withIndexCursor :: forall a. (PackageIndexCursor -> IO a) -> IO a
   , updateMetadata :: IO ()
-  , -- | Download the given package to the given directory
-    --
-    -- e.g. The following call creates the following directory tree:
-    --
-    -- >>> downloadPackageTo service (PackageId "foo" "0.0.0") "/tmp/packages/"
-    --
-    -- @
-    -- /tmp/packages/
-    -- `-- foo-0.0.0.tar.gz
-    -- `-- foo-0.0.0/
-    --     `-- foo.cabal
-    --     `-- Foo.hs
-    -- @
-    downloadPackage :: PackageId -> FilePath -> IO ()
+  , downloadPackage :: PackageId -> FilePath -> IO ()
+  -- ^ Download the given package to the given directory
+  --
+  -- e.g. The following call creates the following directory tree:
+  --
+  -- >>> downloadPackageTo service (PackageId "foo" "0.0.0") "/tmp/packages/"
+  --
+  -- @
+  -- /tmp/packages/
+  -- `-- foo-0.0.0.tar.gz
+  -- `-- foo-0.0.0/
+  --     `-- foo.cabal
+  --     `-- Foo.hs
+  -- @
   }
 
 data PackageIndexCursor = PackageIndexCursor

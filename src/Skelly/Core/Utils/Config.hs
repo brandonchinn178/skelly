@@ -19,14 +19,14 @@ discoverConfig loggingService configName = do
     Just fp -> do
       Logging.logDebug loggingService . Text.pack $ "Found " <> configName <> " at: " <> fp
       pure fp
-  where
-    getConfigPaths dir =
-      let parent = takeDirectory dir
-          parents = if parent == dir then [] else getConfigPaths parent
-       in (dir </> configName) : parents
+ where
+  getConfigPaths dir =
+    let parent = takeDirectory dir
+        parents = if parent == dir then [] else getConfigPaths parent
+     in (dir </> configName) : parents
 
-    findM f = \case
-      [] -> pure Nothing
-      x : xs -> do
-        res <- f x
-        if res then pure (Just x) else findM f xs
+  findM f = \case
+    [] -> pure Nothing
+    x : xs -> do
+      res <- f x
+      if res then pure (Just x) else findM f xs

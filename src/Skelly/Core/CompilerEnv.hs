@@ -44,48 +44,48 @@ loadCompilerEnv ghcVersion = do
       , ghcPkgPath
       , ghcPkgList
       }
-  where
-    findGhc = do
-      exes <-
-        fmap concat . mapM findExecutables $
-          [ "ghc-" <> (Text.unpack . renderVersion) ghcVersion
-          , "ghc"
-          ]
-
-      let isMatch exe =
-            readLines exe ["--version"] >>= \case
-              [line] -> do
-                let versionStr = Text.takeWhileEnd (/= ' ') line
-                pure $ parseVersion versionStr == Just ghcVersion
-              _ -> do
-                pure False
-
-      findM isMatch exes >>= \case
-        Just exe -> canonicalizePath exe
-        Nothing -> throwIO $ ExecutableNotFound ("ghc-" <> renderVersion ghcVersion)
-
-    findGhcPkg ghc = do
-      let ghcPkg = takeDirectory ghc </> "ghc-pkg"
-      ghcPkgExists <- doesFileExist ghcPkg
-      unless ghcPkgExists $ throwIO $ ExecutableNotFound (Text.pack ghcPkg)
-      pure ghcPkg
-
-    loadGhcPkgList ghcPkg = do
-      pkgs <- map Text.strip . drop 1 <$> readLines ghcPkg ["list"]
-      pure . Map.fromList $
-        [ (packageName, packageVersion)
-        | Just PackageId{..} <- map parsePackageId pkgs
+ where
+  findGhc = do
+    exes <-
+      fmap concat . mapM findExecutables $
+        [ "ghc-" <> (Text.unpack . renderVersion) ghcVersion
+        , "ghc"
         ]
 
-    readLines cmd args =
-      tryAny (readProcess cmd args "") >>= \case
-        Left _ -> pure []
-        Right s -> pure . Text.lines . Text.pack $ s
+    let isMatch exe =
+          readLines exe ["--version"] >>= \case
+            [line] -> do
+              let versionStr = Text.takeWhileEnd (/= ' ') line
+              pure $ parseVersion versionStr == Just ghcVersion
+            _ -> do
+              pure False
 
-    findM f = \case
-      [] -> pure Nothing
-      x : xs -> do
-        cond <- f x
-        if cond
-          then pure $ Just x
-          else findM f xs
+    findM isMatch exes >>= \case
+      Just exe -> canonicalizePath exe
+      Nothing -> throwIO $ ExecutableNotFound ("ghc-" <> renderVersion ghcVersion)
+
+  findGhcPkg ghc = do
+    let ghcPkg = takeDirectory ghc </> "ghc-pkg"
+    ghcPkgExists <- doesFileExist ghcPkg
+    unless ghcPkgExists $ throwIO $ ExecutableNotFound (Text.pack ghcPkg)
+    pure ghcPkg
+
+  loadGhcPkgList ghcPkg = do
+    pkgs <- map Text.strip . drop 1 <$> readLines ghcPkg ["list"]
+    pure . Map.fromList $
+      [ (packageName, packageVersion)
+      | Just PackageId{..} <- map parsePackageId pkgs
+      ]
+
+  readLines cmd args =
+    tryAny (readProcess cmd args "") >>= \case
+      Left _ -> pure []
+      Right s -> pure . Text.lines . Text.pack $ s
+
+  findM f = \case
+    [] -> pure Nothing
+    x : xs -> do
+      cond <- f x
+      if cond
+        then pure $ Just x
+        else findM f xs

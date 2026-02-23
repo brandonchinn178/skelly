@@ -15,15 +15,15 @@ import Data.Text qualified as Text
 import Options.Applicative qualified as Opt
 import Skelly.CLI.Command
 import Skelly.CLI.CommandBase
-import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
-import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
+import Skelly.Core.Service (IsService (..), loadService)
+import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageName)
 import Skelly.Core.Types.Version (
   Version,
@@ -45,27 +45,29 @@ commandAdd =
         pure Options
           <*> depsParser
     }
-  where
-    depsParser =
-      Opt.many . Opt.argument parseDepArg . mconcat $
-        [ Opt.metavar "DEP"
-        , Opt.help "A dependency, optionally in the form of 'name@versionRange'"
-        ]
+ where
+  depsParser =
+    Opt.many . Opt.argument parseDepArg . mconcat $
+      [ Opt.metavar "DEP"
+      , Opt.help "A dependency, optionally in the form of 'name@versionRange'"
+      ]
 
-    parseDepArg = do
-      arg <- Opt.str
-      case Text.splitOn "@" arg of
-        [name] -> pure (name, Nothing)
-        [name, rangeStr] ->
-          case parseVersionRange rangeStr of
-            Just range -> pure (name, Just range)
-            Nothing -> Opt.readerError $ Text.unpack $ "Range specified with invalid format: " <> rangeStr
-        _ -> Opt.readerError $ Text.unpack $ "Dependency specified with invalid format: " <> arg
+  parseDepArg = do
+    arg <- Opt.str
+    case Text.splitOn "@" arg of
+      [name] -> pure (name, Nothing)
+      [name, rangeStr] ->
+        case parseVersionRange rangeStr of
+          Just range -> pure (name, Just range)
+          Nothing -> Opt.readerError $ Text.unpack $ "Range specified with invalid format: " <> rangeStr
+      _ -> Opt.readerError $ Text.unpack $ "Dependency specified with invalid format: " <> arg
 
 instance
   ( IsService opts Logging.Service
   , IsService opts PackageIndex.Service
-  ) => IsService opts Service where
+  ) =>
+  IsService opts Service
+  where
   initService = do
     loggingService <- loadService
     packageIndexService <- loadService
@@ -103,23 +105,23 @@ run Service{..} Options{..} = do
   let ghcVersion = makeVersion [9, 10, 1] -- TODO: get from hspackage.toml
   env <- loadCompilerEnv ghcVersion
   foldlM (go env) cfg dependencies >>= savePackageConfig
-  where
-    go env cfg (dep, mRange) = do
-      range <- resolveRange env dep mRange
-      logDebug loggingService $
-        "Adding dependency: " <> dep <> " => " <> renderVersionRange range
-      pure $ PackageConfig.addDependency dep range cfg
+ where
+  go env cfg (dep, mRange) = do
+    range <- resolveRange env dep mRange
+    logDebug loggingService $
+      "Adding dependency: " <> dep <> " => " <> renderVersionRange range
+    pure $ PackageConfig.addDependency dep range cfg
 
-    -- If a range isn't specified, default to "^X.Y.Z", where "X.Y.Z" is the
-    -- most recent version on Hackage currently.
-    resolveRange env dep = \case
-      Just range -> pure range
-      -- TODO: ensure version is compatible with other bounds
-      -- TODO: if package already in deps, update the version
-      Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getPreferredVersion env dep
+  -- If a range isn't specified, default to "^X.Y.Z", where "X.Y.Z" is the
+  -- most recent version on Hackage currently.
+  resolveRange env dep = \case
+    Just range -> pure range
+    -- TODO: ensure version is compatible with other bounds
+    -- TODO: if package already in deps, update the version
+    Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getPreferredVersion env dep
 
-    foldlM f z = \case
-      [] -> pure z
-      x : xs -> do
-        result <- f z x
-        foldlM f result xs
+  foldlM f z = \case
+    [] -> pure z
+    x : xs -> do
+      result <- f z x
+      foldlM f result xs

@@ -30,32 +30,32 @@ data InstalledPackageInfo = InstalledPackageInfo
 -- https://downloads.haskell.org/~ghc/9.0.1/docs/html/users_guide/packages.html#installedpackageinfo-a-package-specification
 renderInstalledPackageInfo :: InstalledPackageInfo -> Text
 renderInstalledPackageInfo InstalledPackageInfo{..} =
-    Text.unlines
-      [ "name: " <> packageName
-      , "version: " <> renderVersion packageVersion
-      , "id: " <> packageId
-      , "key: " <> packageId -- https://github.com/ghc/ghc/commit/d80caca10d7c2fa1c9ee8ef6bcafac365d02ff3d
-      -- TODO: license
-      -- TODO: copyright
-      -- TODO: author
-      -- TODO: maintainer
-      -- TODO: stability
-      -- TODO: homepage
-      -- TODO: package-url
-      -- TODO: description
-      -- TODO: category
-      , "exposed: True"
-      , "exposed-modules:" <> stringList (map renderModuleName installedPackageModules)
-      -- TODO: hidden modules
+  Text.unlines
+    [ "name: " <> packageName
+    , "version: " <> renderVersion packageVersion
+    , "id: " <> packageId
+    , "key: " <> packageId -- https://github.com/ghc/ghc/commit/d80caca10d7c2fa1c9ee8ef6bcafac365d02ff3d
+    -- TODO: license
+    -- TODO: copyright
+    -- TODO: author
+    -- TODO: maintainer
+    -- TODO: stability
+    -- TODO: homepage
+    -- TODO: package-url
+    -- TODO: description
+    -- TODO: category
+    , "exposed: True"
+    , "exposed-modules:" <> stringList (map renderModuleName installedPackageModules)
+    , -- TODO: hidden modules
       -- TODO: trusted
-      , "import-dirs: " <> Text.pack installedPackageLocation
-      , "library-dirs: " <> Text.pack installedPackageLocation
-      , "hs-libraries: " <> ("HS" <> packageId)
-      -- TODO: extra-libraries
+      "import-dirs: " <> Text.pack installedPackageLocation
+    , "library-dirs: " <> Text.pack installedPackageLocation
+    , "hs-libraries: " <> ("HS" <> packageId)
+    , -- TODO: extra-libraries
       -- TODO: extra-ghci-libraries
       -- TODO: include-dirs
       -- TODO: includes
-      , "depends: " <> stringList (map renderPackageId installedPackageDeps)
+      "depends: " <> stringList (map renderPackageId installedPackageDeps)
       -- TODO: hugs-options
       -- TODO: cc-options
       -- TODO: ld-options
@@ -63,13 +63,13 @@ renderInstalledPackageInfo InstalledPackageInfo{..} =
       -- TODO: frameworks
       -- TODO: haddock-interfaces
       -- TODO: haddock-html
-      ]
-  where
-    PackageId{packageName, packageVersion} = installedPackageId
-    packageId = renderPackageId installedPackageId
+    ]
+ where
+  PackageId{packageName, packageVersion} = installedPackageId
+  packageId = renderPackageId installedPackageId
 
-    stringList = Text.concat . map ("\n  " <>) . sep ","
-    sep s = \case
-      [] -> []
-      [x] -> [x]
-      x:xs -> (x <> s) : sep s xs
+  stringList = Text.concat . map ("\n  " <>) . sep ","
+  sep s = \case
+    [] -> []
+    [x] -> [x]
+    x : xs -> (x <> s) : sep s xs

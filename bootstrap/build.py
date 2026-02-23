@@ -107,8 +107,7 @@ def test(args):
         "  hs-source-dirs: test",
         "  ghc-options: -Wall -Werror -F -pgmF=skeletest-preprocessor",
         "  build-tool-depends: skeletest:skeletest-preprocessor",
-        "  default-language: Haskell2010",
-        "  default-extensions: ImportQualifiedPost",
+        "  default-language: GHC2024",
         "  main-is: Main.hs",
         "  other-modules:",
         *(f"    {s}" for s in test_modules),
@@ -157,8 +156,7 @@ class HsPackage(NamedTuple):
         ]
         lines += [
             f"library",
-            f"  default-language: Haskell2010",
-            f"  default-extensions: ImportQualifiedPost",
+            f"  default-language: GHC2024",
             f"  hs-source-dirs: src",
             f"  ghc-options: -Wall -Werror",  # TODO: add this dynamically
             f"  exposed-modules:",
@@ -170,8 +168,7 @@ class HsPackage(NamedTuple):
         # executable
         lines += [
             f"executable {name}",
-            f"  default-language: Haskell2010",
-            f"  default-extensions: ImportQualifiedPost",
+            f"  default-language: GHC2024",
             f"  main-is: src/Main.hs",
             f"  ghc-options: -Wall -Werror",  # TODO: add this dynamically
             f"  build-depends:",

@@ -24,17 +24,16 @@ parseImports fp input =
 
 importsParser :: Parser [ModuleName]
 importsParser = catMaybes <$> many (notFollowedBy eof *> parseNextImport)
-  where
-    -- precondition: parser at beginning of line
-    -- postcondition: parser at beginning of line
-    parseNextImport =
-      optional (try $ space *> string "import" *> space1 *> importModuleNameParser)
-        <* takeWhileP Nothing (/= '\n') -- ignore everything up to the newline character
-        <* takeP Nothing 1 -- skip the newline character
-
-    importModuleNameParser = do
-      moduleName <-
-        optional (string "qualified" *> space1)
-          *> space
-          *> takeWhileP Nothing (not . isSpace)
-      maybe (failure Nothing mempty) pure $ parseModuleName moduleName
+ where
+  -- precondition: parser at beginning of line
+  -- postcondition: parser at beginning of line
+  parseNextImport =
+    optional (try $ space *> string "import" *> space1 *> importModuleNameParser)
+      <* takeWhileP Nothing (/= '\n') -- ignore everything up to the newline character
+      <* takeP Nothing 1 -- skip the newline character
+  importModuleNameParser = do
+    moduleName <-
+      optional (string "qualified" *> space1)
+        *> space
+        *> takeWhileP Nothing (not . isSpace)
+    maybe (failure Nothing mempty) pure $ parseModuleName moduleName

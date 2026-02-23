@@ -39,8 +39,8 @@ decodeConfig :: TOML.Decoder WorkspaceConfig
 decodeConfig = do
   packageFlags <- fmap (map parseFlag) <$> TOML.getField "flags"
   pure WorkspaceConfig{..}
-  where
-    parseFlag flag =
-      case Text.uncons flag of
-        Just ('-', flag') -> (flag', False)
-        _ -> (flag, True)
+ where
+  parseFlag flag =
+    case Text.uncons flag of
+      Just ('-', flag') -> (flag', False)
+      _ -> (flag, True)

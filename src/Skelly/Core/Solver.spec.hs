@@ -12,8 +12,8 @@ import Data.List (elemIndex)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
-import Data.Text (Text)
 import Data.Set qualified as Set
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Skelly.Core.CompilerEnv (CompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
@@ -69,9 +69,9 @@ spec = do
       expected =
         [ "and-1.1"
         , "any-2"
-        -- TODO: add back
-        -- , "exact-1.2.3"
-        , "gt-3.1"
+        , -- TODO: add back
+          -- , "exact-1.2.3"
+          "gt-3.1"
         , "lt-1.1"
         , "or-2.1"
         , "pvp-1.5.1"
@@ -174,8 +174,8 @@ toRawPackageDeps deps =
 
 toPackageDeps :: PackageDepsList -> Map PackageName CompiledVersionRange
 toPackageDeps = fmap compile . toRawPackageDeps
-  where
-    compile r = fromMaybe (error $ "Unsatisfiable range: " <> show r) . compileRange $ r
+ where
+  compile r = fromMaybe (error $ "Unsatisfiable range: " <> show r) . compileRange $ r
 
 toPackageId :: Text -> PackageId
 toPackageId s =
@@ -214,16 +214,16 @@ withIndex index service =
             }
     , rankPackage = rankPackageAlpha
     }
-  where
-    indexMap =
-      Map.fromListWith (<>) $
-        [ (packageName, Map.singleton packageVersion (toRawPackageDeps deps))
-        | (PackageId{..}, deps) <- index
-        ]
+ where
+  indexMap =
+    Map.fromListWith (<>) $
+      [ (packageName, Map.singleton packageVersion (toRawPackageDeps deps))
+      | (PackageId{..}, deps) <- index
+      ]
 
-    -- in tests, iterate over packages in alphabetical order
-    rankPackageAlpha name = fromMaybe (-1) $ name `elemIndex` sortedPackages
-    sortedPackages = reverse [packageName | (PackageId{..}, _) <- index]
+  -- in tests, iterate over packages in alphabetical order
+  rankPackageAlpha name = fromMaybe (-1) $ name `elemIndex` sortedPackages
+  sortedPackages = reverse [packageName | (PackageId{..}, _) <- index]
 
 withRankPackage :: (PackageName -> Int) -> Service -> Service
 withRankPackage rankPackage service = service{rankPackage = rankPackage}

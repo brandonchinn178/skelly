@@ -9,6 +9,7 @@ module Skelly.Core.PackageIndex (
   module Skelly.Core.PackageIndex.Interface,
 
   -- * Implementations
+
   -- ** Hackage
   module Skelly.Core.PackageIndex.Hackage,
 ) where
@@ -21,7 +22,9 @@ import Skelly.Core.Utils.Hackage qualified as Utils.Hackage
 instance
   ( Has HackageOptions opts
   , IsService opts Utils.Hackage.Service
-  ) => IsService opts Service where
+  ) =>
+  IsService opts Service
+  where
   initService = do
     hackageOptions <- getOpts
     hackageService <- loadService

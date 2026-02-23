@@ -3,16 +3,16 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoFieldSelectors #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{- |
+{-|
 This module contains the dependency resolution solver.
 
 For now, uses a fairly naive DFS with non-chronological backtracking.
@@ -47,9 +47,9 @@ import Data.List (elemIndex)
 import Data.List qualified as List
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Map.Strict qualified as Strict (Map)
-import Data.Map.Strict qualified as Map.Strict
 import Data.Map.Merge.Strict qualified as Map.Strict
+import Data.Map.Strict qualified as Map.Strict
+import Data.Map.Strict qualified as Strict (Map)
 import Data.Maybe (fromMaybe)
 import Data.Ord (Down (..))
 import Data.Set (Set)
@@ -82,8 +82,8 @@ import Skelly.Core.Types.Version (
  )
 import Skelly.Core.Utils.Cabal (FlagAssignment)
 import Skelly.Core.WorkspaceConfig (PackageFlags)
-import UnliftIO.MVar (MVar, newMVar, modifyMVar)
 import UnliftIO.Exception (throwIO)
+import UnliftIO.MVar (MVar, modifyMVar, newMVar)
 
 -- FIXME: Replace PackageDeps with RawPackageDeps; skelly.lock should be parsed as VersionRange since CompiledVersionRange is lossy
 type RawPackageDeps = Map PackageName VersionRange
@@ -94,15 +94,16 @@ data Service = Service
   , withCursor :: forall a. (PackageIndex.PackageIndexCursor -> IO a) -> IO a
   , getPackageDeps :: PackageIndex.PackageIndexCursor -> FlagAssignment -> PackageId -> IO RawPackageDeps
   , getPackageVersionInfo :: PackageIndex.PackageIndexCursor -> PackageName -> IO PackageIndex.PackageVersionInfo
-  , -- | Rank package, where higher is better.
-    rankPackage :: PackageName -> Int
+  , rankPackage :: PackageName -> Int
+  -- ^ Rank package, where higher is better.
   }
 
 instance
   ( IsService opts Logging.Service
   , IsService opts PackageIndex.Service
   ) =>
-  IsService opts Service where
+  IsService opts Service
+  where
   initService = do
     loggingService <- loadService
     pkgIndexService <- loadService
@@ -134,98 +135,100 @@ run service@Service{..} env@Env{..} initialDeps =
     runValidateT (runSolver service env packageCache initialDeps) >>= \case
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
-  where
-    getPackageDeps' cursor packageId@PackageId{packageName} = do
-      let flags = Map.findWithDefault [] packageName packageFlags
-      getPackageDeps cursor flags packageId
+ where
+  getPackageDeps' cursor packageId@PackageId{packageName} = do
+    let flags = Map.findWithDefault [] packageName packageFlags
+    getPackageDeps cursor flags packageId
 
 type ConflictSet = Set PackageName
 type PackageQueue = HashPSQ PackageName Int ()
 
 runSolver ::
-  Service
-  -> Env
-  -> PackageCache
-  -> PackageDeps
-  -> ValidateT ConflictSet IO [SolvedPackage]
+  Service ->
+  Env ->
+  PackageCache ->
+  PackageDeps ->
+  ValidateT ConflictSet IO [SolvedPackage]
 runSolver Service{..} Env{..} packageCache deps0 = resolve (toPackageMap deps0) (insertAll deps0 HashPSQ.empty)
-  where
-    insertAll deps queue =
-      List.foldl'
-        (\queue' pkgName -> HashPSQ.insert pkgName ((-1) * rankPackage pkgName) () queue')
-        queue
-        (Map.keys deps)
+ where
+  insertAll deps queue =
+    List.foldl'
+      (\queue' pkgName -> HashPSQ.insert pkgName ((-1) * rankPackage pkgName) () queue')
+      queue
+      (Map.keys deps)
 
-    resolve ::
-      PackageMap -- ^ The dependency constraints so far
-      -> PackageQueue
-      -> ValidateT ConflictSet IO [SolvedPackage]
-    resolve deps queue =
-      case HashPSQ.minView queue of
-        Nothing -> pure []
-        Just (pkgName, _, _, queue') ->
+  resolve ::
+    PackageMap ->
+    -- \^ The dependency constraints so far
+    PackageQueue ->
+    ValidateT ConflictSet IO [SolvedPackage]
+  resolve deps queue =
+    case HashPSQ.minView queue of
+      Nothing -> pure []
+      Just (pkgName, _, _, queue') ->
+        case lookupPackageMap pkgName deps of
+          -- TODO: get `rts` version from ghc-pkg, should be treated the same as
+          -- other packages not on Hackage (e.g. import package from GitHub)
+          _ | pkgName == "rts" -> resolve deps queue'
+          -- package is in the queue without registering a range; this is a bug
+          Nothing -> error $ "Unexpectedly failed to find package " <> show pkgName <> ":\n" <> show deps
+          Just (range, _)
+            -- package already resolved
+            | isSingletonRange range -> resolve deps queue'
+            -- package not resolved
+            | otherwise -> resolvePackage deps queue' pkgName range
+
+  resolvePackage deps queue pkgName range = do
+    PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
+    versions <-
+      case filter (inRange range) availableVersions of
+        [] -> do
+          -- if there are no availableVersions in range, there must be a
+          -- PackageOrigin with an unsatisfiable range; find it and error
+          let hasInvalidRange PackageOrigin{range = originRange} =
+                case compileRange originRange of
+                  Just range' -> all (not . inRange range') availableVersions
+                  Nothing -> True
           case lookupPackageMap pkgName deps of
-            -- TODO: get `rts` version from ghc-pkg, should be treated the same as
-            -- other packages not on Hackage (e.g. import package from GitHub)
-            _ | pkgName == "rts" -> resolve deps queue'
-            -- package is in the queue without registering a range; this is a bug
-            Nothing -> error $ "Unexpectedly failed to find package " <> show pkgName <> ":\n" <> show deps
-            Just (range, _)
-              -- package already resolved
-              | isSingletonRange range -> resolve deps queue'
-              -- package not resolved
-              | otherwise -> resolvePackage deps queue' pkgName range
+            Just (_, origins) | invalidOrigin : _ <- filter hasInvalidRange origins -> do
+              let PackageOrigin{name = originName} = invalidOrigin
+              ValidateT.refute $ Set.fromList [pkgName, originName]
+            -- TODO: this can happen if someone puts "> 100" in hspackage.toml
+            _ -> error $ "Unexpectedly failed to find any versions in range for " <> show pkgName
+        versions -> do
+          pure $ sortVersions compilerEnv pkgName preferredVersionRange versions
 
-    resolvePackage deps queue pkgName range = do
-      PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
-      versions <-
-        case filter (inRange range) availableVersions of
-          [] -> do
-            -- if there are no availableVersions in range, there must be a
-            -- PackageOrigin with an unsatisfiable range; find it and error
-            let hasInvalidRange PackageOrigin{range = originRange} =
-                  case compileRange originRange of
-                    Just range' -> all (not . inRange range') availableVersions
-                    Nothing -> True
-            case lookupPackageMap pkgName deps of
-              Just (_, origins) | invalidOrigin : _ <- filter hasInvalidRange origins -> do
-                let PackageOrigin{name = originName} = invalidOrigin
-                ValidateT.refute $ Set.fromList [pkgName, originName]
-              -- TODO: this can happen if someone puts "> 100" in hspackage.toml
-              _ -> error $ "Unexpectedly failed to find any versions in range for " <> show pkgName
-          versions -> do
-            pure $ sortVersions compilerEnv pkgName preferredVersionRange versions
+    withBacktracking pkgName . flip map versions $ \pkgVer -> do
+      let pkgId = PackageId pkgName pkgVer
+      liftIO . logDebug loggingService $ "Trying package: " <> renderPackageId pkgId
+      -- get package dependencies
+      pkgDepsRaw <- getPackageDepsCached packageCache pkgId
+      pkgDepsFull <-
+        case traverse (\r -> (r,) <$> compileRange r) pkgDepsRaw of
+          Just pkgDepsFull -> pure pkgDepsFull
+          -- this package contains a dependency that has unsatisfiable bounds, so
+          -- this package is completely unbuildable.
+          -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
+          Nothing -> ValidateT.refute $ Set.singleton pkgName
+      -- update constraints
+      deps' <-
+        addErrors (Set.singleton pkgName) $
+          mergeDeps
+            loggingService
+            pkgId
+            pkgDepsFull
+            (setVersionPackageMap pkgName pkgVer deps)
+      -- recurse
+      let pkgDeps = snd <$> pkgDepsFull
+      let queue' = insertAll pkgDeps queue
+      let pkg = SolvedPackage{packageId = pkgId, packageDeps = pkgDeps}
+      (pkg :) <$> resolve deps' queue'
 
-      withBacktracking pkgName . flip map versions $ \pkgVer -> do
-        let pkgId = PackageId pkgName pkgVer
-        liftIO . logDebug loggingService $ "Trying package: " <> renderPackageId pkgId
-        -- get package dependencies
-        pkgDepsRaw <- getPackageDepsCached packageCache pkgId
-        pkgDepsFull <-
-          case traverse (\r -> (r,) <$> compileRange r) pkgDepsRaw of
-            Just pkgDepsFull -> pure pkgDepsFull
-            -- this package contains a dependency that has unsatisfiable bounds, so
-            -- this package is completely unbuildable.
-            -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
-            Nothing -> ValidateT.refute $ Set.singleton pkgName
-        -- update constraints
-        deps' <-
-          addErrors (Set.singleton pkgName) $
-            mergeDeps
-              loggingService
-              pkgId
-              pkgDepsFull
-              (setVersionPackageMap pkgName pkgVer deps)
-        -- recurse
-        let pkgDeps = snd <$> pkgDepsFull
-        let queue' = insertAll pkgDeps queue
-        let pkg = SolvedPackage { packageId = pkgId, packageDeps = pkgDeps }
-        (pkg :) <$> resolve deps' queue'
-
-    withBacktracking :: PackageName -> [ValidateT ConflictSet IO a] -> ValidateT ConflictSet IO a
-    withBacktracking pkgName = \case
-      [] -> ValidateT.refute mempty
-      m : ms -> m `catchErrors` \conflicts ->
+  withBacktracking :: PackageName -> [ValidateT ConflictSet IO a] -> ValidateT ConflictSet IO a
+  withBacktracking pkgName = \case
+    [] -> ValidateT.refute mempty
+    m : ms ->
+      m `catchErrors` \conflicts ->
         -- only continue if the current package-version is involved in the
         -- conflict; if it didn't, then that means some package lower in the
         -- search graph conflicted with a package higher in the search graph,
@@ -240,32 +243,32 @@ sortTopological :: PackageCache -> [SolvedPackage] -> IO [SolvedPackage]
 sortTopological packageCache pkgs = do
   (graph, nodeFromVertex, _) <- Graph.graphFromEdges <$> mapM toNode pkgs
   pure . map (fromNode . nodeFromVertex) $ Graph.reverseTopSort graph
-  where
-    fromNode (node, _, _) = node
-    toNode pkg@SolvedPackage{packageId} = do
-      deps <- getPackageDepsCached packageCache packageId
-      pure (pkg, packageName packageId, Map.keys deps)
+ where
+  fromNode (node, _, _) = node
+  toNode pkg@SolvedPackage{packageId} = do
+    deps <- getPackageDepsCached packageCache packageId
+    pure (pkg, packageName packageId, Map.keys deps)
 
 -- | Order versions in the following order first, then latest to oldest.
 --     1. Pre-installed versions
 --     2. Preferred versions
 --     3. Other versions
 sortVersions ::
-  CompilerEnv
-  -> PackageName
-  -> CompiledVersionRange
-  -> [Version]
-  -> [Version]
+  CompilerEnv ->
+  PackageName ->
+  CompiledVersionRange ->
+  [Version] ->
+  [Version]
 sortVersions compilerEnv pkgName preferredVersionRange =
   List.sortOn $ \version -> (toVersionType version, Down version)
-  where
-    toVersionType :: Version -> Int
-    toVersionType version
-      | Just version == installedVersion = 1
-      | inRange preferredVersionRange version = 2
-      | otherwise = 100
+ where
+  toVersionType :: Version -> Int
+  toVersionType version
+    | Just version == installedVersion = 1
+    | inRange preferredVersionRange version = 2
+    | otherwise = 100
 
-    installedVersion = Map.lookup pkgName (CompilerEnv.ghcPkgList compilerEnv)
+  installedVersion = Map.lookup pkgName (CompilerEnv.ghcPkgList compilerEnv)
 
 -- | Rank the given package, where a higher rank means the package gets solved
 -- earlier.
@@ -275,15 +278,15 @@ sortVersions compilerEnv pkgName preferredVersionRange =
 --   2. TODO
 rankPackageDefault :: PackageName -> Int
 rankPackageDefault name = fromMaybe (-1) $ name `elemIndex` reverse preinstalledPackages
-  where
-    -- Preinstalled packages, ordered from most important to least
-    -- TODO: fill out more
-    preinstalledPackages =
-      [ "ghc"
-      , "base"
-      , "template-haskell"
-      , "text"
-      ]
+ where
+  -- Preinstalled packages, ordered from most important to least
+  -- TODO: fill out more
+  preinstalledPackages =
+    [ "ghc"
+    , "base"
+    , "template-haskell"
+    , "text"
+    ]
 
 {----- PackageMap -----}
 
@@ -301,9 +304,9 @@ data PackageOrigin = PackageOrigin
   deriving (Show)
 
 toPackageMap :: PackageDeps -> PackageMap
-toPackageMap = PackageMap . fmap (, []) . toStrictMap
-  where
-    toStrictMap = Map.Strict.fromAscList . Map.toAscList
+toPackageMap = PackageMap . fmap (,[]) . toStrictMap
+ where
+  toStrictMap = Map.Strict.fromAscList . Map.toAscList
 
 lookupPackageMap :: PackageName -> PackageMap -> Maybe (CompiledVersionRange, [PackageOrigin])
 lookupPackageMap name (PackageMap m) = Map.Strict.lookup name m
@@ -319,40 +322,40 @@ mergeDeps ::
   PackageMap ->
   ValidateT ConflictSet IO PackageMap
 mergeDeps loggingService pkgId newDeps (PackageMap deps) =
-  PackageMap <$>
-    Map.Strict.mergeA
+  PackageMap
+    <$> Map.Strict.mergeA
       Map.Strict.preserveMissing
       Map.Strict.preserveMissing
       (Map.Strict.zipWithAMatched constrain)
       deps
       (Map.Strict.map addOrigin newDeps)
-  where
-    constrain depName (oldRange, origins1) (newRange, origins2) = do
-      range <-
-        case intersectRange oldRange newRange of
-          Just r -> pure r
-          Nothing -> do
-            liftIO . logDebug loggingService . Text.intercalate "\n" $
-              [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
-              , "\tCurrent: " <> prettyCompiledRange oldRange
-              , "\tNew:     " <> prettyCompiledRange newRange
-              ]
-            ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
+ where
+  constrain depName (oldRange, origins1) (newRange, origins2) = do
+    range <-
+      case intersectRange oldRange newRange of
+        Just r -> pure r
+        Nothing -> do
+          liftIO . logDebug loggingService . Text.intercalate "\n" $
+            [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
+            , "\tCurrent: " <> prettyCompiledRange oldRange
+            , "\tNew:     " <> prettyCompiledRange newRange
+            ]
+          ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
 
-      pure (range, origins1 <> origins2)
+    pure (range, origins1 <> origins2)
 
-    addOrigin (range, compiledRange) =
-      let origin =
-            PackageOrigin
-              { name = packageName pkgId
-              , version = packageVersion pkgId
-              , range = range
-              }
-       in (compiledRange, [origin])
+  addOrigin (range, compiledRange) =
+    let origin =
+          PackageOrigin
+            { name = packageName pkgId
+            , version = packageVersion pkgId
+            , range = range
+            }
+     in (compiledRange, [origin])
 
 {----- Validation -----}
 
-catchErrors :: Monad m => ValidateT e m a -> (e -> ValidateT e m a) -> ValidateT e m a
+catchErrors :: (Monad m) => ValidateT e m a -> (e -> ValidateT e m a) -> ValidateT e m a
 catchErrors m f =
   lift (runValidateT m) >>= \case
     Right a -> pure a
@@ -390,17 +393,17 @@ data PackageCache = PackageCache
   }
 
 initPackageCache ::
-  MonadIO m =>
-  (PackageName -> IO PackageIndex.PackageVersionInfo)
-  -> (PackageId -> IO RawPackageDeps)
-  -> m PackageCache
+  (MonadIO m) =>
+  (PackageName -> IO PackageIndex.PackageVersionInfo) ->
+  (PackageId -> IO RawPackageDeps) ->
+  m PackageCache
 initPackageCache getVersionInfo getDeps = do
   packageVersionCache <- initCache getVersionInfo
   packageDependencyCache <- initCache getDeps
   pure PackageCache{..}
 
-getPackageVersionInfoCached :: MonadIO m => PackageCache -> PackageName -> m PackageIndex.PackageVersionInfo
+getPackageVersionInfoCached :: (MonadIO m) => PackageCache -> PackageName -> m PackageIndex.PackageVersionInfo
 getPackageVersionInfoCached PackageCache{packageVersionCache} = getCachedVal packageVersionCache
 
-getPackageDepsCached :: MonadIO m => PackageCache -> PackageId -> m RawPackageDeps
+getPackageDepsCached :: (MonadIO m) => PackageCache -> PackageId -> m RawPackageDeps
 getPackageDepsCached PackageCache{packageDependencyCache} = getCachedVal packageDependencyCache

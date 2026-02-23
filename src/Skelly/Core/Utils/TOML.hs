@@ -46,13 +46,13 @@ import Data.Bifunctor (first)
 import Data.FileEmbed (embedStringFile)
 import Data.Foldable qualified as Seq (toList)
 import Data.Map qualified as Map
+import Data.Sequence (Seq)
+import Data.Sequence qualified as Seq
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Text.Lazy qualified as TextL
 import Data.Time (timeZoneOffsetString)
-import Data.Sequence (Seq)
-import Data.Sequence qualified as Seq
 import Skelly.Core.Paths (skellyCacheDir)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -116,9 +116,10 @@ encode Document{..} = unsafePerformIO $ do
   doesDirectoryExist venvDir >>= \case
     True -> pure ()
     False -> do
-      pythonExe <- findExecutable "python3" >>= \case
-        Just exe -> pure exe
-        Nothing -> error "Could not find Python 3 -- Skelly requires Python 3 for now"
+      pythonExe <-
+        findExecutable "python3" >>= \case
+          Just exe -> pure exe
+          Nothing -> error "Could not find Python 3 -- Skelly requires Python 3 for now"
       run_ pythonExe ["-m", "venv", venvDir]
       run_ (venvDir </> "bin" </> "pip") ["install", "tomlkit"]
 
@@ -126,41 +127,41 @@ encode Document{..} = unsafePerformIO $ do
   writeFile script $(embedStringFile "src/Skelly/Core/Utils/TOML_encode.py")
 
   Text.pack <$> run (venvDir </> "bin" </> "python3") [script, updates] (Text.unpack rawDoc)
-  where
-    run_ cmd args = run cmd args "" >> pure ()
-    run cmd args stdin = do
-      (code, stdout, stderr) <- readProcessWithExitCode cmd args stdin
-      case code of
-        ExitSuccess{} -> pure stdout
-        ExitFailure{} ->
-          error . unlines $
-            [ "Could not encode TOML document:"
-            , stdout
-            , stderr
-            ]
+ where
+  run_ cmd args = run cmd args "" >> pure ()
+  run cmd args stdin = do
+    (code, stdout, stderr) <- readProcessWithExitCode cmd args stdin
+    case code of
+      ExitSuccess{} -> pure stdout
+      ExitFailure{} ->
+        error . unlines $
+          [ "Could not encode TOML document:"
+          , stdout
+          , stderr
+          ]
 
-    updates =
-      Text.unpack . TextL.toStrict . Aeson.encodeToLazyText $
-        [ case update of
-            SetKey keys val ->
-              Aeson.object
-                [ "type" Aeson..= ("set-key" :: Text)
-                , "keys" Aeson..= keys
-                , "val" Aeson..= tomlToJSON val
-                ]
-        | update <- Seq.toList docUpdates
-        ]
-    tomlToJSON = \case
-      TOML.Table table -> Aeson.toJSON $ tomlToJSON <$> table
-      TOML.Array vs -> Aeson.toJSON $ map tomlToJSON vs
-      TOML.String s -> Aeson.toJSON s
-      TOML.Integer x -> Aeson.toJSON x
-      TOML.Float x -> Aeson.toJSON x
-      TOML.Boolean b -> Aeson.toJSON b
-      TOML.OffsetDateTime (dt, tz) -> Aeson.toJSON (dt, timeZoneOffsetString tz)
-      TOML.LocalDateTime dt -> Aeson.toJSON dt
-      TOML.LocalDate d -> Aeson.toJSON d
-      TOML.LocalTime t -> Aeson.toJSON t
+  updates =
+    Text.unpack . TextL.toStrict . Aeson.encodeToLazyText $
+      [ case update of
+          SetKey keys val ->
+            Aeson.object
+              [ "type" Aeson..= ("set-key" :: Text)
+              , "keys" Aeson..= keys
+              , "val" Aeson..= tomlToJSON val
+              ]
+      | update <- Seq.toList docUpdates
+      ]
+  tomlToJSON = \case
+    TOML.Table table -> Aeson.toJSON $ tomlToJSON <$> table
+    TOML.Array vs -> Aeson.toJSON $ map tomlToJSON vs
+    TOML.String s -> Aeson.toJSON s
+    TOML.Integer x -> Aeson.toJSON x
+    TOML.Float x -> Aeson.toJSON x
+    TOML.Boolean b -> Aeson.toJSON b
+    TOML.OffsetDateTime (dt, tz) -> Aeson.toJSON (dt, timeZoneOffsetString tz)
+    TOML.LocalDateTime dt -> Aeson.toJSON dt
+    TOML.LocalDate d -> Aeson.toJSON d
+    TOML.LocalTime t -> Aeson.toJSON t
 
 encodeFile :: FilePath -> Document -> IO ()
 encodeFile fp = Text.writeFile fp . encode
@@ -178,17 +179,17 @@ setKey keys val doc@Document{..} =
         , docUpdates = docUpdates <> Seq.singleton (SetKey keys val)
         }
     Nothing -> doc
-  where
-    setInTable tab = \case
-      [] -> Nothing
-      k : [] -> pure $ Map.insert k val tab
-      k : ks -> do
-        nextTable <-
-          case Map.lookup k tab of
-            Nothing -> pure Map.empty
-            Just (TOML.Table tab') -> pure tab'
-            Just _ -> Nothing
-        setInTable nextTable ks
+ where
+  setInTable tab = \case
+    [] -> Nothing
+    k : [] -> pure $ Map.insert k val tab
+    k : ks -> do
+      nextTable <-
+        case Map.lookup k tab of
+          Nothing -> pure Map.empty
+          Just (TOML.Table tab') -> pure tab'
+          Just _ -> Nothing
+      setInTable nextTable ks
 
 {---- Parsing ----}
 
@@ -196,5 +197,5 @@ parseWith :: TOML.Decoder a -> Document -> Either TOML.TOMLError a
 parseWith decoder Document{parsedTable} =
   runDecodeM $
     TOML.runDecoder decoder (TOML.Table parsedTable)
-  where
-    runDecodeM (TOML.DecodeM run) = first (uncurry TOML.DecodeError) $ run []
+ where
+  runDecodeM (TOML.DecodeM run) = first (uncurry TOML.DecodeError) $ run []

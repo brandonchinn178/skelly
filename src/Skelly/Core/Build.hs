@@ -38,9 +38,11 @@ import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
+
 -- import Skelly.Core.Parse (parseImports)
 import Skelly.Core.Paths (packageDistDir, skellyCacheDir)
 import Skelly.Core.Service (IsService (..), loadService)
+
 -- import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageId (PackageId), renderPackageId)
 import Skelly.Core.Types.PackageId qualified as PackageId
@@ -58,10 +60,11 @@ import Skelly.Core.Utils.Modules (
  )
 import Skelly.Core.Utils.Path (listFiles)
 import System.Directory (getCurrentDirectory)
-import System.FilePath (takeDirectory, (</>))
 import System.Exit (ExitCode (..), exitWith)
+import System.FilePath (takeDirectory, (</>))
 import System.IO.Unsafe (unsafePerformIO)
 import System.Process qualified as Process
+
 -- import UnliftIO.Async (pooledForConcurrently)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import UnliftIO.Temporary (withSystemTempDirectory)
@@ -69,15 +72,17 @@ import UnliftIO.Temporary (withSystemTempDirectory)
 data Service = Service
   { loggingService :: Logging.Service
   , pkgIndexService :: PackageIndex.Service
-  -- , solveDeps :: CompilerEnv -> Solver.PackageDeps -> IO [PackageId]
-  , loadPackageConfig :: IO PackageConfig
+  , -- , solveDeps :: CompilerEnv -> Solver.PackageDeps -> IO [PackageId]
+    loadPackageConfig :: IO PackageConfig
   , loadCompilerEnv :: Version -> IO CompilerEnv
   }
 
 instance
   ( IsService opts Logging.Service
   , IsService opts PackageIndex.Service
-  ) => IsService opts Service where
+  ) =>
+  IsService opts Service
+  where
   initService = do
     loggingService <- loadService
     pkgIndexService <- loadService
@@ -85,8 +90,8 @@ instance
     pure
       Service
         { loggingService
-        -- , solveDeps = Solver.run solverService
-        , pkgIndexService
+        , -- , solveDeps = Solver.run solverService
+          pkgIndexService
         , loadPackageConfig = PackageConfig.load loggingService
         , loadCompilerEnv = CompilerEnv.loadCompilerEnv
         }
@@ -119,19 +124,19 @@ data Targets
 
 resolveTargets :: Map Text a -> Targets -> (Map Text a, [Target])
 resolveTargets components = first collect . mapEither resolveTarget . toTargetsList
-  where
-    toTargetsList = \case
-      AllTargets -> Map.keys components
-      Targets targets -> targets
-    resolveTarget target =
-      -- TODO: resolve target as pattern, instead of exact match
-      if target `Map.member` components
-        then Right [target]
-        else Left target
-    collect = Map.restrictKeys components . Set.fromList . concat
+ where
+  toTargetsList = \case
+    AllTargets -> Map.keys components
+    Targets targets -> targets
+  resolveTarget target =
+    -- TODO: resolve target as pattern, instead of exact match
+    if target `Map.member` components
+      then Right [target]
+      else Left target
+  collect = Map.restrictKeys components . Set.fromList . concat
 
-    mapEither :: (a -> Either e b) -> [a] -> ([b], [e])
-    mapEither f = swap . partitionEithers . map f
+  mapEither :: (a -> Either e b) -> [a] -> ([b], [e])
+  mapEither f = swap . partitionEithers . map f
 
 {----- Run -----}
 
@@ -241,9 +246,9 @@ run service@Service{..} Options{..} = do
       , [binNew]
       , ["-o", distDir </> "bin" </> Text.unpack binName]
       ]
-  where
-    -- TODO: get actual directory where the hsproject.toml file is
-    projectDir = unsafePerformIO getCurrentDirectory
+ where
+  -- TODO: get actual directory where the hsproject.toml file is
+  projectDir = unsafePerformIO getCurrentDirectory
 
 data DepInfo = DepInfo
   { depSrcDirs :: [FilePath]
@@ -267,25 +272,25 @@ downloadDep index cursor pkgId = do
       forM_ modules $ \(_, fp) ->
         Text.writeFile fp . (header <>) =<< Text.readFile fp
 
-    -- TODO: write autogen cabal files
+  -- TODO: write autogen cabal files
 
   pure
     DepInfo
       { depSrcDirs = srcDirs
       }
-  where
-    dest = skellyCacheDir </> "packages" </> (Text.unpack . renderPackageId) pkgId
+ where
+  dest = skellyCacheDir </> "packages" </> (Text.unpack . renderPackageId) pkgId
 
 {----- Build library -----}
 
 -- TODO: cleanup
-data LibraryBuildPlan =
-  LibraryBuildPlan
-    { libraryId :: PackageId
-    , libraryConfig :: PackageConfig.LibraryInfo
-    , libraryModules :: [(ModuleName, FilePath)]
-    , librarySrcDirs :: [FilePath]
-    }
+data LibraryBuildPlan
+  = LibraryBuildPlan
+  { libraryId :: PackageId
+  , libraryConfig :: PackageConfig.LibraryInfo
+  , libraryModules :: [(ModuleName, FilePath)]
+  , librarySrcDirs :: [FilePath]
+  }
 
 getLibraryBuildPlan :: Service -> PackageId -> PackageConfig.LibraryInfo -> IO LibraryBuildPlan
 getLibraryBuildPlan Service{..} libraryId libraryConfig = do
@@ -296,18 +301,18 @@ getLibraryBuildPlan Service{..} libraryId libraryConfig = do
   let librarySrcDirs = sourceDirs
 
   pure LibraryBuildPlan{..}
-  where
-    PackageConfig.LibraryInfo{sharedInfo} = libraryConfig
-    PackageConfig.SharedInfo{sourceDirs} = sharedInfo
+ where
+  PackageConfig.LibraryInfo{sharedInfo} = libraryConfig
+  PackageConfig.SharedInfo{sourceDirs} = sharedInfo
 
-    showModulesAndPaths =
-      let showModuleAndPath (name, path) = renderModuleName name <> " (" <> Text.pack path <> ")"
-       in Text.intercalate ", " . map showModuleAndPath
+  showModulesAndPaths =
+    let showModuleAndPath (name, path) = renderModuleName name <> " (" <> Text.pack path <> ")"
+     in Text.intercalate ", " . map showModuleAndPath
 
 findModulesUnder :: FilePath -> IO [(ModuleName, FilePath)]
 findModulesUnder dir = mapMaybe parseModulePath' <$> listFiles defaultOpts dir
-  where
-    parseModulePath' file = (,dir </> file) <$> parseModulePath file
+ where
+  parseModulePath' file = (,dir </> file) <$> parseModulePath file
 
 -- -- | Sort modules, where latter modules may import earlier modules.
 -- sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, FilePath)]
@@ -352,18 +357,18 @@ ghcBuild loggingService env cwd args' = withSystemTempDirectory "skelly-ghc" $ \
     Process.waitForProcess h >>= \case
       ExitSuccess -> pure ()
       code@(ExitFailure _) -> exitWith code
-  where
-    args =
-      -- TODO: allow specifying ghc options on command line
-      -- TODO: -j
-      -- TODO: -O2 for release mode
-      -- TODO: -Wall
-      -- TODO: -Werror for only local
-      concat
-        [ case Logging.getLogLevel loggingService of
-            Logging.LevelDebug -> ["-v1"]
-            Logging.LevelInfo -> ["-v1"]
-            Logging.LevelWarn -> ["-v1"]
-            Logging.LevelError -> ["-v0"]
-        , args'
-        ]
+ where
+  args =
+    -- TODO: allow specifying ghc options on command line
+    -- TODO: -j
+    -- TODO: -O2 for release mode
+    -- TODO: -Wall
+    -- TODO: -Werror for only local
+    concat
+      [ case Logging.getLogLevel loggingService of
+          Logging.LevelDebug -> ["-v1"]
+          Logging.LevelInfo -> ["-v1"]
+          Logging.LevelWarn -> ["-v1"]
+          Logging.LevelError -> ["-v0"]
+      , args'
+      ]

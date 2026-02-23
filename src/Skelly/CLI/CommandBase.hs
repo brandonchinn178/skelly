@@ -31,5 +31,5 @@ parseBaseOptions = do
 
       -- TODO: allow user to configure the index provider + hackage opts
       packageIndexOptions = PackageIndex.defaultHackageOptions
-    in
+     in
       logOptions `HCons` packageIndexOptions `HCons` HNil
