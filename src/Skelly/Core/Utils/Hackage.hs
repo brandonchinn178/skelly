@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
@@ -69,7 +70,7 @@ import Network.URI (URI)
 import Network.URI qualified as URI
 import Network.URI.Static qualified as URI
 import Skelly.Core.Error (SkellyError (..), SomeHackageError (..))
-import Skelly.Core.Logging (LogLevel (..), logAt, logDebug, logWarn)
+import Skelly.Core.Logging (LogLevel (..))
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.Types.PackageId (PackageId (..))
@@ -142,18 +143,18 @@ withRepo service@Service{..} opts f = wrapHackageErrors $
     Hackage.requiresBootstrap repo >>= \case
       False -> pure ()
       True -> do
-        logDebug loggingService "Bootstrapping chain of trust"
+        loggingService.debug "Bootstrapping chain of trust"
         -- TODO: take bootstrap keys + threshold as input, if user wants to use
         -- their own keys, or if user is using their own Hackage server
         runBootstrap opts repo
 
-        logDebug loggingService "Download Hackage repo for the first time"
+        loggingService.debug "Download Hackage repo for the first time"
         updateMetadata repo
 
     whenMetadataExpired repo $ do
       updateMetadata repo `catchAny` \e -> do
-        logWarn loggingService "Failed to update Hackage metadata, run `skelly cache update` manually."
-        logDebug loggingService $ (Text.pack . displayException) e
+        loggingService.warn "Failed to update Hackage metadata, run `skelly cache update` manually."
+        loggingService.debug $ (Text.pack . displayException) e
 
     f repo
 
@@ -305,7 +306,7 @@ mkHttpLib httpService =
 
 mkHackageLogger :: Logging.Service -> Hackage.LogMessage -> IO ()
 mkHackageLogger loggingService msg =
-  logAt loggingService (toLogLevel msg) $
+  loggingService.log (toLogLevel msg) $
     "[Hackage] " <> Text.pack (Pretty.pretty msg)
  where
   toLogLevel = \case

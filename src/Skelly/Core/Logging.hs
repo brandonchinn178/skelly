@@ -2,23 +2,17 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Skelly.Core.Logging (
   -- * Service
   Service (..),
   Options (..),
   initService,
-
-  -- * Methods
-  getLogLevel,
-  logAt,
-  logDebug,
-  logInfo,
-  logWarn,
-  logError,
 
   -- ** Modifiers
   modifyMessage,
@@ -34,6 +28,7 @@ module Skelly.Core.Logging (
 
 import Data.Text (Text)
 import Data.Text.IO qualified as Text
+import GHC.Records (HasField (..))
 import Skelly.Core.Service (Has, IsService (..), getOpts)
 
 data Service = Service
@@ -49,7 +44,7 @@ instance (Has Options opts) => IsService opts Service where
   initService = do
     options <- getOpts
     let doLog level msg =
-          if level >= logLevel options
+          if level >= options.logLevel
             then Text.putStrLn $ "[" <> displayLevel level <> "] " <> msg
             else pure ()
     pure Service{..}
@@ -78,26 +73,21 @@ displayLevel = \case
   LevelWarn -> "WARN"
   LevelError -> "ERROR"
 
-getLogLevel :: Service -> LogLevel
-getLogLevel = logLevel . options
-
-logAt :: Service -> LogLevel -> Text -> IO ()
-logAt = doLog
-
-logDebug :: Service -> Text -> IO ()
-logDebug service = doLog service LevelDebug
-
-logInfo :: Service -> Text -> IO ()
-logInfo service = doLog service LevelInfo
-
-logWarn :: Service -> Text -> IO ()
-logWarn service = doLog service LevelWarn
-
-logError :: Service -> Text -> IO ()
-logError service = doLog service LevelError
+instance HasField "logLevel" Service LogLevel where
+  getField = (.options.logLevel)
+instance HasField "log" Service (LogLevel -> Text -> IO ()) where
+  getField = (.doLog)
+instance HasField "debug" Service (Text -> IO ()) where
+  getField service = service.log LevelDebug
+instance HasField "info" Service (Text -> IO ()) where
+  getField service = service.log LevelInfo
+instance HasField "warn" Service (Text -> IO ()) where
+  getField service = service.log LevelWarn
+instance HasField "error" Service (Text -> IO ()) where
+  getField service = service.log LevelError
 
 modifyMessage :: (Text -> Text) -> Service -> Service
-modifyMessage f service = service{doLog = \lvl msg -> doLog service lvl (f msg)}
+modifyMessage f service = service{doLog = \lvl msg -> service.log lvl (f msg)}
 
 prependMessage :: Text -> Service -> Service
 prependMessage s = modifyMessage (s <>)

@@ -19,7 +19,6 @@ import Skelly.CLI.Command
 import Skelly.CLI.CommandBase
 import Skelly.Core.CompilerEnv (CompilerEnv, loadCompilerEnv)
 import Skelly.Core.Error (SkellyError (..))
-import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig qualified as PackageConfig
 import Skelly.Core.PackageIndex qualified as PackageIndex
@@ -115,7 +114,7 @@ run Service{..} Options{..} = do
         -- TODO: ensure version is compatible with other bounds
         -- TODO: if package already in deps, update the version
         Nothing -> VersionWithOp VERSION_PVP_MAJOR <$> getPreferredVersion env dep
-    logDebug loggingService $
+    loggingService.debug $
       "Adding dependency: " <> dep <> " => " <> renderVersionRange range
     pure (dep, range)
 
