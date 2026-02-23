@@ -20,7 +20,7 @@ A lot of modules follow the Services pattern, which consists of the following:
 
 ```hs
 import Skelly.Core.Foo qualified as Foo
-import Skelly.Core.Logging (LogLevel (..), logDebug)
+import Skelly.Core.Logging (LogLevel (..))
 import Skelly.Core.Logging qualified as Logging
 
 data Service = Service
@@ -36,7 +36,7 @@ initService logLevel = Service{..}
 
 doThing :: Service -> IO ()
 doThing Service{..} = do
-  logDebug loggingService "Hello world"
+  loggingService.debug "Hello world"
   Foo.run fooService
 ```
 

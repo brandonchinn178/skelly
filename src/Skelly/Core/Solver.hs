@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -61,7 +62,6 @@ import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (
   SkellyError (DependencyResolutionFailure),
  )
-import Skelly.Core.Logging (logDebug)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageIndex qualified as PackageIndex
 import Skelly.Core.Service (IsService (..), loadService)
@@ -201,7 +201,7 @@ runSolver Service{..} Env{..} packageCache deps0 = resolve (toPackageMap deps0) 
 
     withBacktracking pkgName . flip map versions $ \pkgVer -> do
       let pkgId = PackageId pkgName pkgVer
-      liftIO . logDebug loggingService $ "Trying package: " <> renderPackageId pkgId
+      liftIO . loggingService.debug $ "Trying package: " <> renderPackageId pkgId
       -- get package dependencies
       pkgDepsRaw <- getPackageDepsCached packageCache pkgId
       pkgDepsFull <-
@@ -336,7 +336,7 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
       case intersectRange oldRange newRange of
         Just r -> pure r
         Nothing -> do
-          liftIO . logDebug loggingService . Text.intercalate "\n" $
+          liftIO . loggingService.debug . Text.intercalate "\n" $
             [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
             , "\tCurrent: " <> prettyCompiledRange oldRange
             , "\tNew:     " <> prettyCompiledRange newRange

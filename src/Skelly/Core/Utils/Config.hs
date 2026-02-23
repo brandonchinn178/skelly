@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Skelly.Core.Utils.Config (
   findConfig,
@@ -17,7 +18,7 @@ findConfig loggingService configName = do
   findM doesFileExist paths >>= \case
     Nothing -> throwIO $ NoConfig configName paths
     Just fp -> do
-      Logging.logDebug loggingService . Text.pack $ "Found " <> configName <> " at: " <> fp
+      loggingService.debug . Text.pack $ "Found " <> configName <> " at: " <> fp
       pure fp
  where
   getConfigPaths dir =

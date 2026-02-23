@@ -35,7 +35,6 @@ import Data.Text.IO qualified as Text
 import Data.Tuple (swap)
 import Skelly.Core.CompilerEnv (CompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
-import Skelly.Core.Logging (logDebug, logWarn)
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageConfig (PackageConfig)
 import Skelly.Core.PackageConfig qualified as PackageConfig
@@ -148,9 +147,8 @@ run service@Service{..} Options{..} = do
   let resolveTargets' :: Map Text a -> Targets -> IO (Map Text a)
       resolveTargets' components targets = do
         let (components', unknownTargets) = resolveTargets components targets
-        unless (null unknownTargets) $
-          logWarn loggingService $
-            "Unknown targets: " <> Text.intercalate ", " unknownTargets
+        unless (null unknownTargets) $ do
+          loggingService.warn $ "Unknown targets: " <> Text.intercalate ", " unknownTargets
         pure components'
   libs <- resolveTargets' pkg.packageLibraries libTargets
   bins <- resolveTargets' pkg.packageBinaries binTargets
@@ -166,10 +164,10 @@ run service@Service{..} Options{..} = do
     libDeps = map (.sharedInfo.dependencies) $ Map.elems libs
     binDeps = map (.sharedInfo.dependencies) $ Map.elems bins
     allDeps = Map.unionsWith VersionRangeAnd (libDeps <> binDeps)
-  logDebug loggingService "Resolving dependencies..."
+  loggingService.debug "Resolving dependencies..."
   -- allTransitiveDeps <- solveDeps env allDeps
   let allTransitiveDeps = undefined env allDeps :: [PackageId]
-  logDebug loggingService $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
+  loggingService.debug $ "allTransitiveDeps = " <> Text.pack (show allTransitiveDeps)
 
   -- download deps
   depInfos <-
@@ -288,7 +286,7 @@ getLibraryBuildPlan :: Service -> PackageId -> PackageConfig.LibraryInfo -> IO L
 getLibraryBuildPlan Service{..} libraryId libraryConfig = do
   -- find modules
   libraryModules <- filter (not . isMainModule . fst) . concat <$> mapM findModulesUnder sourceDirs
-  logDebug loggingService $ "Found modules: " <> showModulesAndPaths libraryModules
+  loggingService.debug $ "Found modules: " <> showModulesAndPaths libraryModules
 
   let librarySrcDirs = sourceDirs
 
@@ -309,15 +307,14 @@ sortModules :: Logging.Service -> [(ModuleName, FilePath)] -> IO [(ModuleName, F
 sortModules loggingService modulesWithPath = do
   moduleToImports <-
     pooledForConcurrently modulesWithPath $ \(moduleName, path) -> do
-      let logProgress =
-            logDebug
-              ( Logging.addContext (renderModuleName moduleName)
-                  . Logging.addContext "parse-imports"
-                  $ loggingService
-              )
-      logProgress "Running..."
+      let importsLogger =
+            id
+              . Logging.addContext (renderModuleName moduleName)
+              . Logging.addContext "parse-imports"
+              $ loggingService
+      importsLogger.debug "Running..."
       imports <- parseImports path <$> Text.readFile path
-      logProgress "Finished"
+      importsLogger.debug "Finished"
       pure ((moduleName, path), imports)
 
   let (modulesGraph, fromVertex, _) =
@@ -333,7 +330,7 @@ sortModules loggingService modulesWithPath = do
 -- TODO: log what modules are being built
 ghcBuild :: Logging.Service -> CompilerEnv -> FilePath -> [String] -> IO ()
 ghcBuild loggingService env cwd args' = withSystemTempDirectory "skelly-ghc" $ \tmpdir -> do
-  logDebug loggingService $ "Running ghc: " <> (Text.pack . show) args
+  loggingService.debug $ "Running ghc: " <> (Text.pack . show) args
 
   let argFile = tmpdir </> "ghc-args"
   writeFile argFile (unlines args)
@@ -355,7 +352,7 @@ ghcBuild loggingService env cwd args' = withSystemTempDirectory "skelly-ghc" $ \
     -- TODO: -Wall
     -- TODO: -Werror for only local
     concat
-      [ case Logging.getLogLevel loggingService of
+      [ case loggingService.logLevel of
           Logging.LevelDebug -> ["-v1"]
           Logging.LevelInfo -> ["-v1"]
           Logging.LevelWarn -> ["-v1"]
