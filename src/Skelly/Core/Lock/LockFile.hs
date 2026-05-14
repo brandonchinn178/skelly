@@ -33,7 +33,7 @@ import Data.Text.Lazy qualified as TextL
 import Data.Text.Lazy.Encoding qualified as TextL
 import Skelly.Core.Error (SkellyError (..))
 import Skelly.Core.Types.PackageId (PackageName)
-import Skelly.Core.Types.Version (CompiledVersionRange, Version)
+import Skelly.Core.Types.Version (Version, VersionRange)
 import UnliftIO.Exception (throwIO)
 
 data LockFile = LockFile
@@ -46,14 +46,14 @@ data LockFile = LockFile
   deriving (Show, Eq)
 
 data LockFilePackageInfo = LockFilePackageInfo
-  { deps :: Map PackageName CompiledVersionRange
+  { deps :: Map PackageName VersionRange
   }
   deriving (Show, Eq)
 
 data LockFileDepInfo = LockFileDepInfo
   { version :: Version
   , integrity :: Digest SHA256
-  , deps :: Map PackageName CompiledVersionRange
+  , deps :: Map PackageName VersionRange
   }
   deriving (Show, Eq)
 

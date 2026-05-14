@@ -17,8 +17,6 @@ module Skelly.Core.Types.Version (
   -- * Range resolution
   CompiledVersionRange,
   compileRange,
-  parseCompiledRange,
-  renderCompiledRange,
   prettyCompiledRange,
   singletonRange,
   wholeRange,
@@ -28,7 +26,6 @@ module Skelly.Core.Types.Version (
   inRange,
 ) where
 
-import Control.Monad ((>=>))
 import Control.Monad.Combinators.Expr qualified as Combinators
 import Data.Aeson qualified as Aeson
 import Data.Interval (Interval)
@@ -62,6 +59,13 @@ data VersionRange
   | VersionRangeAnd VersionRange VersionRange
   | VersionRangeOr VersionRange VersionRange
   deriving (Show, Eq)
+
+instance Aeson.ToJSON VersionRange where
+  toJSON = Aeson.toJSON . renderVersionRange
+instance Aeson.FromJSON VersionRange where
+  parseJSON = Aeson.withText "VersionRange" $ \s ->
+    maybe (fail "Invalid VersionRange") pure $
+      parseVersionRange s
 
 data VersionOp
   = -- | @< 1.2.3@, matches any version prior to the given version
@@ -149,14 +153,6 @@ newtype CompiledVersionRange
   }
   deriving (Show, Eq)
 
-instance Aeson.FromJSON CompiledVersionRange where
-  parseJSON = Aeson.withText "CompiledVersionRange" $ \s ->
-    maybe (fail "Invalid CompiledVersionRange") pure $
-      parseCompiledRange s
-
-instance Aeson.ToJSON CompiledVersionRange where
-  toJSON = Aeson.toJSON . renderCompiledRange
-
 compileRange :: VersionRange -> Maybe CompiledVersionRange
 compileRange = fmap simplifyRange . go
  where
@@ -209,17 +205,8 @@ simplifyRange = CompiledVersionRange . foldNE simplify . sort . unCompiledVersio
     let go (a NonEmpty.:| as) = f a $ maybe [] (uncurry (:) . go) (NonEmpty.nonEmpty as)
      in uncurry (NonEmpty.:|) . go
 
-parseCompiledRange :: Text -> Maybe CompiledVersionRange
-parseCompiledRange = parseVersionRange >=> compileRange
-
-renderCompiledRange :: CompiledVersionRange -> Text
-renderCompiledRange = renderCompiledRange' False
-
 prettyCompiledRange :: CompiledVersionRange -> Text
-prettyCompiledRange = renderCompiledRange' True
-
-renderCompiledRange' :: Bool -> CompiledVersionRange -> Text
-renderCompiledRange' pretty = renderBoolOps . map renderBounds . NonEmpty.toList . unCompiledVersionRange
+prettyCompiledRange = renderBoolOps . map renderBounds . NonEmpty.toList . unCompiledVersionRange
  where
   renderBounds i
     | Just v <- Interval.extractSingleton i = ["= " <> renderVersion v]
@@ -247,8 +234,8 @@ renderCompiledRange' pretty = renderBoolOps . map renderBounds . NonEmpty.toList
       , let needsParens = length parts > 1 && length bounds > 1
       ]
 
-  gteSymbol = if pretty then "≥" else ">="
-  lteSymbol = if pretty then "≤" else "<="
+  gteSymbol = "≥"
+  lteSymbol = "≤"
 
 -- | A helper for constructing a range matching just the given Version.
 singletonRange :: Version -> CompiledVersionRange

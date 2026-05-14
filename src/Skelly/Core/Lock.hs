@@ -18,7 +18,6 @@ module Skelly.Core.Lock (
   Options (..),
 ) where
 
-import Control.Monad (join)
 import Crypto.Hash qualified as Crypto
 import Data.ByteString qualified as ByteString
 import Data.Map (Map)
@@ -40,16 +39,19 @@ import Skelly.Core.Paths (skellyLockFile)
 import Skelly.Core.Service (IsService (..), loadService)
 import Skelly.Core.Solver qualified as Solver
 import Skelly.Core.Types.PackageId (PackageId (..), PackageName)
-import Skelly.Core.Types.Version (CompiledVersionRange, compileRange, intersectRange, makeVersion)
+import Skelly.Core.Types.Version (
+  VersionRange (VersionRangeAnd),
+  makeVersion,
+ )
 import Skelly.Core.WorkspaceConfig qualified as WorkspaceConfig
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Directory (doesFileExist, getCurrentDirectory)
-import UnliftIO.Exception (fromEither, throwIO)
+import UnliftIO.Exception (fromEither)
 
 data Service = Service
   { loggingService :: Logging.Service
-  , solveDeps :: Solver.Env -> Map PackageName CompiledVersionRange -> IO [Solver.SolvedPackage]
+  , solveDeps :: Solver.Env -> Map PackageName VersionRange -> IO [Solver.SolvedPackage]
   }
 
 instance
@@ -115,11 +117,7 @@ data LockFileStatus
 toPackageInfo :: PackageConfig -> Either SkellyError (PackageName, LockFilePackageInfo)
 toPackageInfo config = do
   let name = config.packageName
-  deps <-
-    flip Map.traverseWithKey config.allDependencies $ \package range ->
-      case compileRange range of
-        Just r -> Right r
-        Nothing -> Left $ UnsatisfiableVersionRange package range
+  let deps = config.allDependencies
   pure (name, LockFile.LockFilePackageInfo{..})
 
 updateLockFile ::
@@ -129,7 +127,7 @@ updateLockFile ::
   Map PackageName LockFilePackageInfo ->
   IO LockFile
 updateLockFile Service{..} env _ packages = do
-  deps <- solveDeps env =<< mergeDeps (Map.elems packages)
+  deps <- solveDeps env $ mergeDeps (Map.elems packages)
   let dependencies =
         [ (packageName packageId, info)
         | Solver.SolvedPackage{..} <- deps
@@ -151,11 +149,5 @@ updateLockFile Service{..} env _ packages = do
   Solver.Env{compilerEnv} = env
 
   mergeDeps =
-    maybe (throwIO DependencyResolutionFailure) pure
-      . unionsWithM intersectRange
+    Map.unionsWith VersionRangeAnd
       . map (\LockFile.LockFilePackageInfo{deps} -> deps)
-
-  unionsWithM :: (Monad m, Ord k) => (a -> a -> m a) -> [Map k a] -> m (Map k a)
-  unionsWithM f =
-    let f' m1 m2 = join $ f <$> m1 <*> m2
-     in sequence . Map.unionsWith f' . map (fmap pure)

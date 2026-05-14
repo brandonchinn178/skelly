@@ -57,10 +57,11 @@ import Data.Ord (Down (..))
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import GHC.Records (HasField (..))
 import Skelly.Core.CompilerEnv (CompilerEnv)
 import Skelly.Core.CompilerEnv qualified as CompilerEnv
 import Skelly.Core.Error (
-  SkellyError (DependencyResolutionFailure),
+  SkellyError (DependencyResolutionFailure, UnsatisfiableVersionRange),
  )
 import Skelly.Core.Logging qualified as Logging
 import Skelly.Core.PackageIndex qualified as PackageIndex
@@ -83,17 +84,15 @@ import Skelly.Core.Types.Version (
  )
 import Skelly.Core.Utils.Cabal (FlagAssignment)
 import Skelly.Core.WorkspaceConfig (PackageFlags)
-import UnliftIO.Exception (throwIO)
+import UnliftIO.Exception (fromEither, throwIO)
 import UnliftIO.MVar (MVar, modifyMVar, newMVar)
 
--- FIXME: Replace PackageDeps with RawPackageDeps; skelly.lock should be parsed as VersionRange since CompiledVersionRange is lossy
-type RawPackageDeps = Map PackageName VersionRange
-type PackageDeps = Map PackageName CompiledVersionRange
+type PackageDeps = Map PackageName VersionRange
 
 data Service = Service
   { loggingService :: Logging.Service
   , withCursor :: forall a. (PackageIndex.PackageIndexCursor -> IO a) -> IO a
-  , getPackageDeps :: PackageIndex.PackageIndexCursor -> FlagAssignment -> PackageId -> IO RawPackageDeps
+  , getPackageDeps :: PackageIndex.PackageIndexCursor -> FlagAssignment -> PackageId -> IO PackageDeps
   , getPackageVersionInfo :: PackageIndex.PackageIndexCursor -> PackageName -> IO PackageIndex.PackageVersionInfo
   , rankPackage :: PackageName -> Int
   -- ^ Rank package, where higher is better.
@@ -133,7 +132,8 @@ run :: Service -> Env -> PackageDeps -> IO [SolvedPackage]
 run service@Service{..} env@Env{..} initialDeps =
   withCursor $ \cursor -> do
     packageCache <- initPackageCache (getPackageVersionInfo cursor) (getPackageDeps' cursor)
-    runValidateT (runSolver service env packageCache initialDeps) >>= \case
+    initialPkgs <- fromEither $ compilePackageMap initialDeps
+    runValidateT (runSolver service env packageCache initialPkgs) >>= \case
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
  where
@@ -148,19 +148,18 @@ runSolver ::
   Service ->
   Env ->
   PackageCache ->
-  PackageDeps ->
+  PackageMap ->
   ValidateT ConflictSet IO [SolvedPackage]
-runSolver Service{..} Env{..} packageCache deps0 = resolve (toPackageMap deps0) (insertAll deps0 HashPSQ.empty)
+runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.keys HashPSQ.empty)
  where
   insertAll deps queue =
     List.foldl'
       (\queue' pkgName -> HashPSQ.insert pkgName ((-1) * rankPackage pkgName) () queue')
       queue
-      (Map.keys deps)
+      deps
 
   resolve ::
-    PackageMap ->
-    -- \^ The dependency constraints so far
+    PackageMap -> -- The dependency constraints so far
     PackageQueue ->
     ValidateT ConflictSet IO [SolvedPackage]
   resolve deps queue =
@@ -203,10 +202,10 @@ runSolver Service{..} Env{..} packageCache deps0 = resolve (toPackageMap deps0) 
       let pkgId = PackageId pkgName pkgVer
       liftIO . loggingService.debug $ "Trying package: " <> renderPackageId pkgId
       -- get package dependencies
-      pkgDepsRaw <- getPackageDepsCached packageCache pkgId
-      pkgDepsFull <-
-        case traverse (\r -> (r,) <$> compileRange r) pkgDepsRaw of
-          Just pkgDepsFull -> pure pkgDepsFull
+      pkgDeps <- getPackageDepsCached packageCache pkgId
+      pkgDepsCompiled <-
+        case traverse (\r -> (r,) <$> compileRange r) pkgDeps of
+          Just pkgDepsCompiled -> pure pkgDepsCompiled
           -- this package contains a dependency that has unsatisfiable bounds, so
           -- this package is completely unbuildable.
           -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
@@ -217,11 +216,10 @@ runSolver Service{..} Env{..} packageCache deps0 = resolve (toPackageMap deps0) 
           mergeDeps
             loggingService
             pkgId
-            pkgDepsFull
+            pkgDepsCompiled
             (setVersionPackageMap pkgName pkgVer deps)
       -- recurse
-      let pkgDeps = snd <$> pkgDepsFull
-      let queue' = insertAll pkgDeps queue
+      let queue' = insertAll (Map.keys pkgDeps) queue
       let pkg = SolvedPackage{packageId = pkgId, packageDeps = pkgDeps}
       (pkg :) <$> resolve deps' queue'
 
@@ -295,6 +293,9 @@ rankPackageDefault name = fromMaybe (-1) $ name `elemIndex` reverse preinstalled
 newtype PackageMap = PackageMap (Strict.Map PackageName (CompiledVersionRange, [PackageOrigin]))
   deriving (Show)
 
+instance HasField "keys" PackageMap [PackageName] where
+  getField (PackageMap pkgs) = Map.keys pkgs
+
 -- | For a dependency, the package/version that requested the dependency and the version range
 -- that package wanted for this dependency.
 data PackageOrigin = PackageOrigin
@@ -304,10 +305,13 @@ data PackageOrigin = PackageOrigin
   }
   deriving (Show)
 
-toPackageMap :: PackageDeps -> PackageMap
-toPackageMap = PackageMap . fmap (,[]) . toStrictMap
+compilePackageMap :: PackageDeps -> Either SkellyError PackageMap
+compilePackageMap deps = PackageMap <$> Map.traverseWithKey compile deps
  where
-  toStrictMap = Map.Strict.fromAscList . Map.toAscList
+  compile name range =
+    case compileRange range of
+      Just compiled -> Right (compiled, [])
+      Nothing -> Left $ UnsatisfiableVersionRange name range
 
 lookupPackageMap :: PackageName -> PackageMap -> Maybe (CompiledVersionRange, [PackageOrigin])
 lookupPackageMap name (PackageMap m) = Map.Strict.lookup name m
@@ -390,13 +394,13 @@ getCachedVal Cache{..} k =
 
 data PackageCache = PackageCache
   { packageVersionCache :: Cache PackageName PackageIndex.PackageVersionInfo
-  , packageDependencyCache :: Cache PackageId RawPackageDeps
+  , packageDependencyCache :: Cache PackageId PackageDeps
   }
 
 initPackageCache ::
   (MonadIO m) =>
   (PackageName -> IO PackageIndex.PackageVersionInfo) ->
-  (PackageId -> IO RawPackageDeps) ->
+  (PackageId -> IO PackageDeps) ->
   m PackageCache
 initPackageCache getVersionInfo getDeps = do
   packageVersionCache <- initCache getVersionInfo
@@ -406,5 +410,5 @@ initPackageCache getVersionInfo getDeps = do
 getPackageVersionInfoCached :: (MonadIO m) => PackageCache -> PackageName -> m PackageIndex.PackageVersionInfo
 getPackageVersionInfoCached PackageCache{packageVersionCache} = getCachedVal packageVersionCache
 
-getPackageDepsCached :: (MonadIO m) => PackageCache -> PackageId -> m RawPackageDeps
+getPackageDepsCached :: (MonadIO m) => PackageCache -> PackageId -> m PackageDeps
 getPackageDepsCached PackageCache{packageDependencyCache} = getCachedVal packageDependencyCache
