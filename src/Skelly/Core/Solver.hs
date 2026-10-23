@@ -77,7 +77,6 @@ import Skelly.Core.Types.Version (
   compileRange,
   inRange,
   intersectRange,
-  isSingletonRange,
   prettyCompiledRange,
   singletonRange,
  )
@@ -171,11 +170,11 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
           _ | pkgName == "rts" -> resolve deps queue'
           -- package is in the queue without registering a range; this is a bug
           Nothing -> error $ "Unexpectedly failed to find package " <> show pkgName <> ":\n" <> show deps
-          Just PackageResolveState{constraint}
+          Just state
             -- package already resolved
-            | isSingletonRange constraint -> resolve deps queue'
+            | state.locked -> resolve deps queue'
             -- package not resolved
-            | otherwise -> resolvePackage deps queue' pkgName constraint
+            | otherwise -> resolvePackage deps queue' pkgName state.constraint
 
   resolvePackage deps queue pkgName range = do
     PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
@@ -216,7 +215,7 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
             loggingService
             pkgId
             pkgDepsCompiled
-            (setVersionPackageMap pkgName pkgVer deps)
+            (lockVersionPackageMap pkgName pkgVer deps)
       -- recurse
       let queue' = insertAll (Map.keys pkgDeps) queue
       let pkg = SolvedPackage{packageId = pkgId, packageDeps = pkgDeps}
@@ -297,6 +296,8 @@ instance HasField "keys" PackageMap [PackageName] where
 
 data PackageResolveState = PackageResolveState
   { constraint :: CompiledVersionRange
+  -- ^ Invariant: satisfies isSingletonRange if locked is True
+  , locked :: Bool
   , origins :: [PackageOrigin]
   }
   deriving (Show)
@@ -315,15 +316,27 @@ compilePackageMap deps = PackageMap <$> Map.traverseWithKey compile deps
  where
   compile name range =
     case compileRange range of
-      Just compiled -> Right PackageResolveState{constraint = compiled, origins = []}
       Nothing -> Left $ UnsatisfiableVersionRange name range
+      Just compiled ->
+        Right
+          PackageResolveState
+            { constraint = compiled
+            , locked = False
+            , origins = []
+            }
 
 lookupPackageMap :: PackageName -> PackageMap -> Maybe PackageResolveState
 lookupPackageMap name (PackageMap m) = Map.Strict.lookup name m
 
-setVersionPackageMap :: PackageName -> Version -> PackageMap -> PackageMap
-setVersionPackageMap name version (PackageMap m) =
-  PackageMap (Map.Strict.adjust (\state -> state{constraint = singletonRange version}) name m)
+lockVersionPackageMap :: PackageName -> Version -> PackageMap -> PackageMap
+lockVersionPackageMap name version (PackageMap m) =
+  PackageMap (Map.Strict.adjust set name m)
+ where
+  set state =
+    state
+      { constraint = singletonRange version
+      , locked = True
+      }
 
 mergeDeps ::
   Logging.Service ->
@@ -357,6 +370,7 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
   toPackageResolveState (range, compiledRange) =
     PackageResolveState
       { constraint = compiledRange
+      , locked = False
       , origins =
           [ PackageOrigin
               { name = packageName pkgId

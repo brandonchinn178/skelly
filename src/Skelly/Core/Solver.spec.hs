@@ -69,9 +69,8 @@ spec = do
       expected =
         [ "and-1.1"
         , "any-2"
-        , -- TODO: add back
-          -- , "exact-1.2.3"
-          "gt-3.1"
+        , "exact-1.2.3"
+        , "gt-3.1"
         , "lt-1.1"
         , "or-2.1"
         , "pvp-1.5.1"
@@ -274,6 +273,26 @@ regressionTests =
       , index = [("base-1", []), ("base-2", [])]
       , input =
           [ ("base", "*")
+          ]
+      , env =
+          defaultEnv
+            { compilerEnv =
+                defaultCompilerEnv
+                  { CompilerEnv.ghcPkgList =
+                      Map.fromList
+                        [ ("base", makeVersion [1])
+                        ]
+                  }
+            }
+      , expected =
+          [ "base-1"
+          ]
+      }
+  , RegressionTest
+      { label = "exact constraints"
+      , index = [("base-1", []), ("base-2", [])]
+      , input =
+          [ ("base", "1")
           ]
       , env =
           defaultEnv
