@@ -19,7 +19,6 @@ import Network.HTTP.Client as X hiding (withResponse)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types as X
-import Network.HTTP.Types.Header as X
 import Skelly.Core.Service (IsService (..))
 import UnliftIO.Exception (try)
 

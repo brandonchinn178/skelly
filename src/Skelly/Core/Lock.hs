@@ -80,7 +80,7 @@ run service@Service{..} _ = do
 
   config <- PackageConfig.load loggingService
   packages <- fromEither $ Map.fromList <$> mapM toPackageInfo [config] -- TODO: load all configs in workspace
-  let ghcVersion = makeVersion [9, 10, 1] -- TODO: decide version from hspackage.toml
+  let ghcVersion = makeVersion [9, 10, 3] -- TODO: decide version from hspackage.toml
   compilerEnv <- loadCompilerEnv ghcVersion
   let env =
         Solver.Env

@@ -53,6 +53,7 @@ def init_build_dir():
         cwd=BUILD_DIR,
         check=True,
     )
+    # TODO: Translate lock file into cabal freeze file
 
 
 def get_cabal() -> str:
