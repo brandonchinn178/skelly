@@ -27,9 +27,7 @@ import Skelly.Core.Types.PackageId (
   renderPackageId,
  )
 import Skelly.Core.Types.Version (
-  CompiledVersionRange,
   VersionRange,
-  compileRange,
   makeVersion,
   parseVersionRange,
   wholeRange,
@@ -107,8 +105,7 @@ spec = do
     liftIO (map getName <$> run service defaultEnv (toPackageDeps input))
       `shouldSatisfy` P.returns (P.eq expected)
 
-  -- FIXME
-  xfail "not working" . it "throws when resolution fails" $ do
+  it "throws when resolution fails" $ do
     let index =
           [ ("foo-1.0", [("bar", "1.0")])
           , ("bar-1.0", [])
@@ -163,18 +160,13 @@ defaultCompilerEnv =
     , ghcPkgList = Map.empty
     }
 
-toRawPackageDeps :: PackageDepsList -> Map PackageName VersionRange
-toRawPackageDeps deps =
+toPackageDeps :: PackageDepsList -> Map PackageName VersionRange
+toPackageDeps deps =
   Map.fromList
     [ (name, range)
     | (name, rangeStr) <- deps
     , let range = fromMaybe (error $ "Invalid range: " <> Text.unpack rangeStr) $ parseVersionRange rangeStr
     ]
-
-toPackageDeps :: PackageDepsList -> Map PackageName CompiledVersionRange
-toPackageDeps = fmap compile . toRawPackageDeps
- where
-  compile r = fromMaybe (error $ "Unsatisfiable range: " <> show r) . compileRange $ r
 
 toPackageId :: Text -> PackageId
 toPackageId s =
@@ -216,7 +208,7 @@ withIndex index service =
  where
   indexMap =
     Map.fromListWith (<>) $
-      [ (packageName, Map.singleton packageVersion (toRawPackageDeps deps))
+      [ (packageName, Map.singleton packageVersion (toPackageDeps deps))
       | (PackageId{..}, deps) <- index
       ]
 
