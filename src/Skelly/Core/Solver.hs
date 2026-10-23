@@ -39,7 +39,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Validate (ValidateT, runValidateT)
 import Control.Monad.Validate qualified as ValidateT
-import Data.Bifunctor (first)
 import Data.Cache.LRU (LRU)
 import Data.Cache.LRU qualified as LRU
 import Data.Graph qualified as Graph
@@ -172,11 +171,11 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
           _ | pkgName == "rts" -> resolve deps queue'
           -- package is in the queue without registering a range; this is a bug
           Nothing -> error $ "Unexpectedly failed to find package " <> show pkgName <> ":\n" <> show deps
-          Just (range, _)
+          Just PackageResolveState{constraint}
             -- package already resolved
-            | isSingletonRange range -> resolve deps queue'
+            | isSingletonRange constraint -> resolve deps queue'
             -- package not resolved
-            | otherwise -> resolvePackage deps queue' pkgName range
+            | otherwise -> resolvePackage deps queue' pkgName constraint
 
   resolvePackage deps queue pkgName range = do
     PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
@@ -190,7 +189,7 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
                   Just range' -> all (not . inRange range') availableVersions
                   Nothing -> True
           case lookupPackageMap pkgName deps of
-            Just (_, origins) | invalidOrigin : _ <- filter hasInvalidRange origins -> do
+            Just PackageResolveState{origins} | invalidOrigin : _ <- filter hasInvalidRange origins -> do
               let PackageOrigin{name = originName} = invalidOrigin
               ValidateT.refute $ Set.fromList [pkgName, originName]
             -- TODO: this can happen if someone puts "> 100" in hspackage.toml
@@ -290,11 +289,17 @@ rankPackageDefault name = fromMaybe (-1) $ name `elemIndex` reverse preinstalled
 {----- PackageMap -----}
 
 -- | A map from package name to a version range and the origins of this dependency.
-newtype PackageMap = PackageMap (Strict.Map PackageName (CompiledVersionRange, [PackageOrigin]))
+newtype PackageMap = PackageMap (Strict.Map PackageName PackageResolveState)
   deriving (Show)
 
 instance HasField "keys" PackageMap [PackageName] where
   getField (PackageMap pkgs) = Map.keys pkgs
+
+data PackageResolveState = PackageResolveState
+  { constraint :: CompiledVersionRange
+  , origins :: [PackageOrigin]
+  }
+  deriving (Show)
 
 -- | For a dependency, the package/version that requested the dependency and the version range
 -- that package wanted for this dependency.
@@ -310,15 +315,15 @@ compilePackageMap deps = PackageMap <$> Map.traverseWithKey compile deps
  where
   compile name range =
     case compileRange range of
-      Just compiled -> Right (compiled, [])
+      Just compiled -> Right PackageResolveState{constraint = compiled, origins = []}
       Nothing -> Left $ UnsatisfiableVersionRange name range
 
-lookupPackageMap :: PackageName -> PackageMap -> Maybe (CompiledVersionRange, [PackageOrigin])
+lookupPackageMap :: PackageName -> PackageMap -> Maybe PackageResolveState
 lookupPackageMap name (PackageMap m) = Map.Strict.lookup name m
 
 setVersionPackageMap :: PackageName -> Version -> PackageMap -> PackageMap
 setVersionPackageMap name version (PackageMap m) =
-  PackageMap (Map.Strict.adjust (first $ const (singletonRange version)) name m)
+  PackageMap (Map.Strict.adjust (\state -> state{constraint = singletonRange version}) name m)
 
 mergeDeps ::
   Logging.Service ->
@@ -333,30 +338,33 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
       Map.Strict.preserveMissing
       (Map.Strict.zipWithAMatched constrain)
       deps
-      (Map.Strict.map addOrigin newDeps)
+      (Map.Strict.map toPackageResolveState newDeps)
  where
-  constrain depName (oldRange, origins1) (newRange, origins2) = do
-    range <-
-      case intersectRange oldRange newRange of
+  constrain depName old new = do
+    constraint <-
+      case intersectRange old.constraint new.constraint of
         Just r -> pure r
         Nothing -> do
           liftIO . loggingService.debug . Text.intercalate "\n" $
             [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
-            , "\tCurrent: " <> prettyCompiledRange oldRange
-            , "\tNew:     " <> prettyCompiledRange newRange
+            , "\tCurrent: " <> prettyCompiledRange old.constraint
+            , "\tNew:     " <> prettyCompiledRange new.constraint
             ]
           ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
 
-    pure (range, origins1 <> origins2)
+    pure old{constraint, origins = old.origins <> new.origins}
 
-  addOrigin (range, compiledRange) =
-    let origin =
-          PackageOrigin
-            { name = packageName pkgId
-            , version = packageVersion pkgId
-            , range = range
-            }
-     in (compiledRange, [origin])
+  toPackageResolveState (range, compiledRange) =
+    PackageResolveState
+      { constraint = compiledRange
+      , origins =
+          [ PackageOrigin
+              { name = packageName pkgId
+              , version = packageVersion pkgId
+              , range = range
+              }
+          ]
+      }
 
 {----- Validation -----}
 
