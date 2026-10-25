@@ -47,6 +47,8 @@ import Data.HashPSQ (HashPSQ)
 import Data.HashPSQ qualified as HashPSQ
 import Data.List (elemIndex)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Map.Merge.Strict qualified as Map.Strict
@@ -137,8 +139,8 @@ run service@Service{..} env@Env{..} initialDeps =
       Right packages -> sortTopological packageCache packages
       Left _ -> throwIO DependencyResolutionFailure
  where
-  getPackageDeps' cursor packageId@PackageId{packageName} = do
-    let flags = Map.findWithDefault [] packageName packageFlags
+  getPackageDeps' cursor packageId = do
+    let flags = Map.findWithDefault [] packageId.name packageFlags
     getPackageDeps cursor flags packageId
 
 type ConflictSet = Set PackageName
@@ -176,24 +178,25 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
             -- package already resolved
             | state.locked -> resolve deps queue'
             -- package not resolved
-            | otherwise -> resolvePackage deps queue' pkgName state.constraint
+            | otherwise -> resolvePackage deps queue' pkgName state
 
-  resolvePackage deps queue pkgName range = do
+  resolvePackage deps queue pkgName state = do
     PackageIndex.PackageVersionInfo{..} <- getPackageVersionInfoCached packageCache pkgName
     versions <-
-      case filter (inRange range) availableVersions of
+      case filter (inRange state.constraint) availableVersions of
         [] -> do
           -- if there are no availableVersions in range, there must be a
           -- PackageOrigin with an unsatisfiable range; find it and error
           let hasInvalidRange PackageOrigin{range = originRange} =
                 let originRange' = compileRange originRange
                  in all (not . inRange originRange') availableVersions
-          case lookupPackageMap pkgName deps of
-            Just PackageResolveState{origins} | invalidOrigin : _ <- filter hasInvalidRange origins -> do
-              let PackageOrigin{name = originName} = invalidOrigin
-              ValidateT.refute $ Set.fromList [pkgName, originName]
-            -- TODO: this can happen if someone puts "> 100" in hspackage.toml
-            _ -> error $ "Unexpectedly failed to find any versions in range for " <> show pkgName
+          case NonEmpty.filter hasInvalidRange state.origins of
+            [] -> error $ "Invariant violation: constraint failed to match while all origins matched: " <> show (pkgName, state)
+            invalidOrigins -> do
+              ValidateT.refute . Set.fromList . (pkgName :) $
+                [ pkg.name
+                | PackageOrigin{package = Just pkg} <- invalidOrigins
+                ]
         versions -> do
           pure $ sortVersions compilerEnv pkgName preferredVersionRange versions
 
@@ -244,7 +247,7 @@ sortTopological packageCache pkgs = do
   fromNode (node, _, _) = node
   toNode pkg@SolvedPackage{packageId} = do
     deps <- getPackageDepsCached packageCache packageId
-    pure (pkg, packageName packageId, Map.keys deps)
+    pure (pkg, packageId.name, Map.keys deps)
 
 -- | Order versions in the following order first, then latest to oldest.
 --     1. Pre-installed versions
@@ -296,17 +299,18 @@ instance HasField "keys" PackageMap [PackageName] where
 
 data PackageResolveState = PackageResolveState
   { constraint :: CompiledVersionRange
-  -- ^ Invariant: satisfies isSingletonRange if locked is True
+  -- ^ Invariants:
+  --   * The conjunction of all ranges in `origins`
+  --   * Satisfies isSingletonRange if locked is True
   , locked :: Bool
-  , origins :: [PackageOrigin]
+  , origins :: NonEmpty PackageOrigin
   }
   deriving (Show)
 
--- | For a dependency, the package/version that requested the dependency and the version range
--- that package wanted for this dependency.
+-- | The package that requested a dependency.
 data PackageOrigin = PackageOrigin
-  { name :: PackageName
-  , version :: Version
+  { package :: Maybe PackageId
+  -- ^ If Nothing, it's a top-level request
   , range :: VersionRange
   }
   deriving (Show)
@@ -322,7 +326,7 @@ compilePackageMap deps = PackageMap <$> Map.traverseWithKey compile deps
       PackageResolveState
         { constraint = compiled
         , locked = False
-        , origins = []
+        , origins = NonEmpty.singleton PackageOrigin{package = Nothing, range}
         }
 
 lookupPackageMap :: PackageName -> PackageMap -> Maybe PackageResolveState
@@ -361,7 +365,7 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
         , "\tCurrent: " <> prettyCompiledRange old.constraint
         , "\tNew:     " <> prettyCompiledRange new.constraint
         ]
-      ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
+      ValidateT.refute $ Set.singleton depName
 
     pure old{constraint, origins = old.origins <> new.origins}
 
@@ -370,12 +374,11 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
       { constraint = compiledRange
       , locked = False
       , origins =
-          [ PackageOrigin
-              { name = packageName pkgId
-              , version = packageVersion pkgId
+          NonEmpty.singleton $
+            PackageOrigin
+              { package = Just pkgId
               , range = range
               }
-          ]
       }
 
 {----- Validation -----}

@@ -178,11 +178,7 @@ run service@Service{..} Options{..} = do
   -- get library build plan
   libPlans <-
     flip mapM (Map.toList libs) $ \(name, libInfo) -> do
-      let libraryId =
-            PackageId
-              { packageName = name
-              , packageVersion = pkg.packageVersion
-              }
+      let libraryId = PackageId{name, version = pkg.packageVersion}
       getLibraryBuildPlan service libraryId libInfo
 
   -- rewrite binary files as module files

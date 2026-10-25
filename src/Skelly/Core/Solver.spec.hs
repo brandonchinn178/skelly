@@ -300,4 +300,27 @@ regressionTests =
           [ "base-1"
           ]
       }
+  , RegressionTest
+      { label = "backtracks from grandparent"
+      , index =
+          [ ("root-1", [("a", "*")])
+          , ("a-2", [("b", "> 1")]) -- The b <=> c conflict's cause is actually here
+          , ("a-1", [("b", "1")])
+          , ("b-2", [("c", "> 1")]) -- b <=> c conflict here
+          , ("b-1", [("c", "1")])
+          , ("c-2", [])
+          , ("c-1", [])
+          ]
+      , input =
+          [ ("root", "*")
+          , ("c", "1")
+          ]
+      , env = defaultEnv
+      , expected =
+          [ "c-1"
+          , "b-1"
+          , "a-1"
+          , "root-1"
+          ]
+      }
   ]

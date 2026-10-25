@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Skelly.Core.Utils.Cabal (
@@ -163,8 +164,8 @@ toPackageName :: Text -> Cabal.PackageName
 toPackageName = Cabal.mkPackageName . Text.unpack
 
 toPackageIdentifier :: PackageId -> Cabal.PackageIdentifier
-toPackageIdentifier PackageId{..} =
+toPackageIdentifier package =
   Cabal.PackageIdentifier
-    { Cabal.pkgName = toPackageName packageName
-    , Cabal.pkgVersion = toCabalVersion packageVersion
+    { Cabal.pkgName = toPackageName package.name
+    , Cabal.pkgVersion = toCabalVersion package.version
     }

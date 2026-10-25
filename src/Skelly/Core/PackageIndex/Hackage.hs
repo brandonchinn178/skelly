@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -108,8 +109,8 @@ initPackageIndexCursor repo callbacks = do
                   { availableVersions = fromMaybe [] mAvailableVersions
                   , preferredVersionRange = fromMaybe wholeRange mPreferredVersionRange
                   }
-      , lookupPackageInfo = \flags packageId@PackageId{..} ->
-          case Map.lookup packageName (packagePtrs ptrs) >>= Map.lookup packageVersion of
+      , lookupPackageInfo = \flags packageId ->
+          case Map.lookup packageId.name (packagePtrs ptrs) >>= Map.lookup packageId.version of
             Nothing -> pure Nothing
             Just ptr -> fmap Just $ do
               let Hackage.IndexCallbacks{indexLookupFileEntry} = callbacks

@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -73,8 +74,8 @@ loadCompilerEnv ghcVersion = do
   loadGhcPkgList ghcPkg = do
     pkgs <- map Text.strip . drop 1 <$> readLines ghcPkg ["list"]
     pure . Map.fromList $
-      [ (packageName, packageVersion)
-      | Just PackageId{..} <- map parsePackageId pkgs
+      [ (pkgId.name, pkgId.version)
+      | Just pkgId <- map parsePackageId pkgs
       ]
 
   readLines cmd args =

@@ -1,5 +1,7 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Skelly.Core.Types.PackageId (
   PackageName,
@@ -15,16 +17,16 @@ import Skelly.Core.Types.Version (Version, parseVersion, renderVersion)
 type PackageName = Text
 
 data PackageId = PackageId
-  { packageName :: PackageName
-  , packageVersion :: Version
+  { name :: PackageName
+  , version :: Version
   }
   deriving (Show, Eq, Ord)
 
 renderPackageId :: PackageId -> Text
 renderPackageId PackageId{..} =
   Text.intercalate "-" $
-    [ packageName
-    , renderVersion packageVersion
+    [ name
+    , renderVersion version
     ]
 
 parsePackageId :: Text -> Maybe PackageId
@@ -32,4 +34,4 @@ parsePackageId s = do
   let (pre, versionStr) = Text.breakOnEnd "-" s
   let name = Text.dropEnd 1 pre
   version <- parseVersion versionStr
-  pure $ PackageId name version
+  pure PackageId{..}

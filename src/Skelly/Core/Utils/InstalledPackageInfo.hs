@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -31,8 +32,8 @@ data InstalledPackageInfo = InstalledPackageInfo
 renderInstalledPackageInfo :: InstalledPackageInfo -> Text
 renderInstalledPackageInfo InstalledPackageInfo{..} =
   Text.unlines
-    [ "name: " <> packageName
-    , "version: " <> renderVersion packageVersion
+    [ "name: " <> installedPackageId.name
+    , "version: " <> renderVersion installedPackageId.version
     , "id: " <> packageId
     , "key: " <> packageId -- https://github.com/ghc/ghc/commit/d80caca10d7c2fa1c9ee8ef6bcafac365d02ff3d
     -- TODO: license
@@ -65,7 +66,6 @@ renderInstalledPackageInfo InstalledPackageInfo{..} =
       -- TODO: haddock-html
     ]
  where
-  PackageId{packageName, packageVersion} = installedPackageId
   packageId = renderPackageId installedPackageId
 
   stringList = Text.concat . map ("\n  " <>) . sep ","
