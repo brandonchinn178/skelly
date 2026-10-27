@@ -34,8 +34,8 @@ spec = do
 
   describe "CompiledVersionRange" $ do
     describe "compileRange" $ do
-      it "returns Nothing for impossible conjunctions" $ do
-        compileRange (toRange "< 1 && > 2") `shouldBe` Nothing
+      it "returns empty range for impossible conjunctions" $ do
+        compileRange (toRange "< 1 && > 2") `shouldSatisfy` (isEmptyRange P.>>> P.eq True)
 
     describe "inRange" $ do
       forM_
@@ -81,33 +81,33 @@ spec = do
 
     describe "intersectRange" $ do
       it "correctly intersects disjunction with range excluding one" $ do
-        Just r <- pure $ intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 1.3")
+        let r = intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 1.3")
         inRange r (toVer "1.1") `shouldBe` False
         inRange r (toVer "1.2") `shouldBe` True
         inRange r (toVer "1.3") `shouldBe` False
         inRange r (toVer "1.4") `shouldBe` False
 
       it "correctly intersects disjunction with range including both" $ do
-        Just r <- pure $ intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 2.0")
+        let r = intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 2.0")
         inRange r (toVer "1.1") `shouldBe` False
         inRange r (toVer "1.2") `shouldBe` True
         inRange r (toVer "1.3") `shouldBe` True
         inRange r (toVer "1.4") `shouldBe` False
 
-      it "returns Nothing when intersecting disjunction with range excluding both" $
-        intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 1.0") `shouldBe` Nothing
+      it "returns empty range when intersecting disjunction with range excluding both" $
+        intersectRange (toRangeC "^1.2 || ^1.3") (toRangeC "< 1.0") `shouldSatisfy` (isEmptyRange P.>>> P.eq True)
 
       it "correctly intersects NEQ with range" $ do
-        Just r <- pure $ intersectRange (toRangeC "!= 1.2") (toRangeC "< 1.4")
+        let r = intersectRange (toRangeC "!= 1.2") (toRangeC "< 1.4")
         inRange r (toVer "1.1") `shouldBe` True
         inRange r (toVer "1.2") `shouldBe` False
         inRange r (toVer "1.3") `shouldBe` True
 
-      it "returns Nothing when intersecting NEQ with EQ" $ do
-        intersectRange (toRangeC "!= 1.2") (toRangeC "1.2") `shouldBe` Nothing
+      it "returns empty range when intersecting NEQ with EQ" $ do
+        intersectRange (toRangeC "!= 1.2") (toRangeC "1.2") `shouldSatisfy` (isEmptyRange P.>>> P.eq True)
 
       it "correctly intersects two NEQ" $ do
-        Just r <- pure $ intersectRange (toRangeC "!= 1.2") (toRangeC "!= 1.3")
+        let r = intersectRange (toRangeC "!= 1.2") (toRangeC "!= 1.3")
         inRange r (toVer "1.1") `shouldBe` True
         inRange r (toVer "1.2") `shouldBe` False
         inRange r (toVer "1.3") `shouldBe` False
@@ -139,10 +139,7 @@ toRange s =
     Nothing -> error $ "Invalid range: " <> Text.unpack s
 
 toRangeC :: Text -> CompiledVersionRange
-toRangeC s =
-  case compileRange (toRange s) of
-    Just r -> r
-    Nothing -> error $ "Invalid range: " <> Text.unpack s
+toRangeC = compileRange . toRange
 
 genVersionRange :: Gen VersionRange
 genVersionRange = Gen.choice [pure AnyVersion, go]

@@ -35,6 +35,7 @@ module Skelly.Core.Solver (
   rankPackageDefault,
 ) where
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Validate (ValidateT, runValidateT)
@@ -77,6 +78,7 @@ import Skelly.Core.Types.Version (
   compileRange,
   inRange,
   intersectRange,
+  isEmptyRange,
   prettyCompiledRange,
   singletonRange,
  )
@@ -184,9 +186,8 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
           -- if there are no availableVersions in range, there must be a
           -- PackageOrigin with an unsatisfiable range; find it and error
           let hasInvalidRange PackageOrigin{range = originRange} =
-                case compileRange originRange of
-                  Just range' -> all (not . inRange range') availableVersions
-                  Nothing -> True
+                let originRange' = compileRange originRange
+                 in all (not . inRange originRange') availableVersions
           case lookupPackageMap pkgName deps of
             Just PackageResolveState{origins} | invalidOrigin : _ <- filter hasInvalidRange origins -> do
               let PackageOrigin{name = originName} = invalidOrigin
@@ -201,13 +202,12 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
       liftIO . loggingService.debug $ "Trying package: " <> renderPackageId pkgId
       -- get package dependencies
       pkgDeps <- getPackageDepsCached packageCache pkgId
-      pkgDepsCompiled <-
-        case traverse (\r -> (r,) <$> compileRange r) pkgDeps of
-          Just pkgDepsCompiled -> pure pkgDepsCompiled
-          -- this package contains a dependency that has unsatisfiable bounds, so
-          -- this package is completely unbuildable.
-          -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
-          Nothing -> ValidateT.refute $ Set.singleton pkgName
+      let pkgDepsCompiled = Map.Strict.map (\r -> (r, compileRange r)) pkgDeps
+      when (any (isEmptyRange . snd) pkgDepsCompiled) $ do
+        -- this package contains a dependency that has unsatisfiable bounds, so
+        -- this package is completely unbuildable.
+        -- e.g. aeson-1.5.5.0 => base < 0 && > 4.7
+        ValidateT.refute $ Set.singleton pkgName
       -- update constraints
       deps' <-
         addErrors (Set.singleton pkgName) $
@@ -314,16 +314,16 @@ data PackageOrigin = PackageOrigin
 compilePackageMap :: PackageDeps -> Either SkellyError PackageMap
 compilePackageMap deps = PackageMap <$> Map.traverseWithKey compile deps
  where
-  compile name range =
-    case compileRange range of
-      Nothing -> Left $ UnsatisfiableVersionRange name range
-      Just compiled ->
-        Right
-          PackageResolveState
-            { constraint = compiled
-            , locked = False
-            , origins = []
-            }
+  compile name range = do
+    let compiled = compileRange range
+    when (isEmptyRange compiled) $ do
+      Left $ UnsatisfiableVersionRange name range
+    Right
+      PackageResolveState
+        { constraint = compiled
+        , locked = False
+        , origins = []
+        }
 
 lookupPackageMap :: PackageName -> PackageMap -> Maybe PackageResolveState
 lookupPackageMap name (PackageMap m) = Map.Strict.lookup name m
@@ -354,16 +354,14 @@ mergeDeps loggingService pkgId newDeps (PackageMap deps) =
       (Map.Strict.map toPackageResolveState newDeps)
  where
   constrain depName old new = do
-    constraint <-
-      case intersectRange old.constraint new.constraint of
-        Just r -> pure r
-        Nothing -> do
-          liftIO . loggingService.debug . Text.intercalate "\n" $
-            [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
-            , "\tCurrent: " <> prettyCompiledRange old.constraint
-            , "\tNew:     " <> prettyCompiledRange new.constraint
-            ]
-          ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
+    let constraint = intersectRange old.constraint new.constraint
+    when (isEmptyRange constraint) $ do
+      liftIO . loggingService.debug . Text.intercalate "\n" $
+        [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
+        , "\tCurrent: " <> prettyCompiledRange old.constraint
+        , "\tNew:     " <> prettyCompiledRange new.constraint
+        ]
+      ValidateT.refute @_ @(ValidateT ConflictSet IO) $ Set.singleton depName
 
     pure old{constraint, origins = old.origins <> new.origins}
 

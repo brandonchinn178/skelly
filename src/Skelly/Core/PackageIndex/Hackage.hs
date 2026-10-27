@@ -40,7 +40,6 @@ import Skelly.Core.Types.Version (
   CompiledVersionRange,
   Version,
   compileRange,
-  renderVersionRange,
   wholeRange,
  )
 import Skelly.Core.Utils.Cabal qualified as Cabal
@@ -228,8 +227,5 @@ getPreferredVersionRange Hackage.IndexCallbacks{..} IndexPtrs{..} package =
       indexLookupFileEntry ptr (Hackage.IndexPkgPrefs $ Cabal.toPackageName package)
     case Cabal.parsePreferredVersions package indexEntryContent of
       _ | indexEntryContent == "" -> pure Nothing -- I'm guessing "" means someone removed preferences for a package?
-      Just range ->
-        case compileRange range of
-          Just preferredVersionRange -> pure $ Just preferredVersionRange
-          Nothing -> error . Text.unpack $ "Package " <> package <> " has unsatisfiable preferred versions: " <> renderVersionRange range
+      Just range -> pure $ Just (compileRange range)
       Nothing -> error . Text.unpack $ "Could not parse preferred versions for: " <> package
