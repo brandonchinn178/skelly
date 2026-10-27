@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -45,6 +46,7 @@ import Data.Cache.LRU qualified as LRU
 import Data.Graph qualified as Graph
 import Data.HashPSQ (HashPSQ)
 import Data.HashPSQ qualified as HashPSQ
+import Data.IORef (IORef)
 import Data.List (elemIndex)
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
@@ -218,7 +220,7 @@ runSolver Service{..} Env{..} packageCache pkgs = resolve pkgs (insertAll pkgs.k
             loggingService
             pkgId
             pkgDepsCompiled
-            (lockVersionPackageMap pkgName pkgVer deps)
+            (setPackageVersion pkgName pkgVer deps)
       -- recurse
       let queue' = insertAll (Map.keys pkgDeps) queue
       let pkg = SolvedPackage{packageId = pkgId, packageDeps = pkgDeps}
@@ -288,59 +290,79 @@ rankPackageDefault name = fromMaybe (-1) $ name `elemIndex` reverse preinstalled
     , "text"
     ]
 
-{----- PackageMap -----}
+{----- SolverState -----}
 
 -- | A map from package name to a version range and the origins of this dependency.
-newtype PackageMap = PackageMap (Strict.Map PackageName PackageResolveState)
+data SolverState = SolverState
+  { packageMap :: !PackageMap
+  , constraintsRef :: IORef () -- FIXME
+  }
   deriving (Show)
+
+initSolverState :: PackageDeps -> IO (Either SkellyError SolverState)
+initSolverState deps = do
+  constraintsRef <- newIORef ()
+  pure $ do
+    packageMap <- compilePackageMap deps
+    Right SolverState{..}
+
+{----- PackageMap -----}
+
+-- | A map from package name to some metadata `a` and where the package came from.
+newtype PackageMap = PackageMap (Strict.Map PackageName PackageState)
+  deriving (Show)
+
+data PackageState
+  = PackageState_Resolved
+      { version :: !Version
+      , origins :: !(NonEmpty PackageOrigin)
+      }
+  | PackageState_Unresolved
+      { range :: !CompiledVersionRange
+      -- ^ Invariant: range == foldr1 intersectRange (map (.range) origins)
+      , origins :: !(NonEmpty PackageOrigin)
+      }
 
 instance HasField "keys" PackageMap [PackageName] where
   getField (PackageMap pkgs) = Map.keys pkgs
-
-data PackageResolveState = PackageResolveState
-  { constraint :: CompiledVersionRange
-  -- ^ Invariants:
-  --   * The conjunction of all ranges in `origins`
-  --   * Satisfies isSingletonRange if locked is True
-  , locked :: Bool
-  , origins :: NonEmpty PackageOrigin
-  }
-  deriving (Show)
 
 -- | The package that requested a dependency.
 data PackageOrigin = PackageOrigin
   { package :: Maybe PackageId
   -- ^ If Nothing, it's a top-level request
-  , range :: VersionRange
+  , range :: CompiledVersionRange
+  , rawRange :: VersionRange
+  -- ^ Invariant: compileRange rawRange == range
+  --
+  -- TODO: Use this in error messages
   }
   deriving (Show)
 
 compilePackageMap :: PackageDeps -> Either SkellyError PackageMap
 compilePackageMap deps = PackageMap <$> Map.traverseWithKey compile deps
  where
-  compile name range = do
-    let compiled = compileRange range
-    when (isEmptyRange compiled) $ do
-      Left $ UnsatisfiableVersionRange name range
+  compile name rawRange = do
+    let range = compileRange rawRange
+    when (isEmptyRange range) $ do
+      Left $ UnsatisfiableVersionRange name rawRange
     Right
-      PackageResolveState
-        { constraint = compiled
-        , locked = False
-        , origins = NonEmpty.singleton PackageOrigin{package = Nothing, range}
+      PackageState_Unresolved
+        { range
+        , origins =
+            NonEmpty.singleton
+              PackageOrigin{package = Nothing, range, rawRange}
         }
 
-lookupPackageMap :: PackageName -> PackageMap -> Maybe PackageResolveState
-lookupPackageMap name (PackageMap m) = Map.Strict.lookup name m
+lookupPackageMap :: PackageName -> PackageMap -> Maybe PackageState
+lookupPackageMap name (PackageMap pkgs) = Map.Strict.lookup name pkgs
 
-lockVersionPackageMap :: PackageName -> Version -> PackageMap -> PackageMap
-lockVersionPackageMap name version (PackageMap m) =
-  PackageMap (Map.Strict.adjust set name m)
+setPackageVersion :: PackageName -> Version -> PackageMap -> PackageMap
+setPackageVersion name version (PackageMap pkgs) =
+  PackageMap $ Map.adjust set name pkgs
  where
-  set state =
-    state
-      { constraint = singletonRange version
-      , locked = True
-      }
+  set = \case
+    PackageState_Resolved{..} -> PackageState_Resolved{version, ..}
+    PackageState_Unresolved{..} -> PackageState_Resolved{version, ..}
 
 mergeDeps ::
   Logging.Service ->
@@ -348,38 +370,42 @@ mergeDeps ::
   Map PackageName (VersionRange, CompiledVersionRange) ->
   PackageMap ->
   ValidateT ConflictSet IO PackageMap
-mergeDeps loggingService pkgId newDeps (PackageMap deps) =
+mergeDeps loggingService pkgId newDeps (PackageMap pkgs) =
   PackageMap
     <$> Map.Strict.mergeA
       Map.Strict.preserveMissing
-      Map.Strict.preserveMissing
+      (Map.Strict.mapMissing toPackageResolveState)
       (Map.Strict.zipWithAMatched constrain)
-      deps
-      (Map.Strict.map toPackageResolveState newDeps)
+      pkgs
+      newDeps
  where
-  constrain depName old new = do
-    let constraint = intersectRange old.constraint new.constraint
+  constrain depName old (range, compiledRange) = do
+    let constraint = intersectRange old.constraint compiledRange
     when (isEmptyRange constraint) $ do
       liftIO . loggingService.debug . Text.intercalate "\n" $
         [ "Conflict: " <> renderPackageId pkgId <> " <=> " <> depName
         , "\tCurrent: " <> prettyCompiledRange old.constraint
-        , "\tNew:     " <> prettyCompiledRange new.constraint
+        , "\tNew:     " <> prettyCompiledRange compiledRange
         ]
+      -- let depOrigins = lookupPackageMap depName deps
+      -- for origin in depOrigins
+      --
       ValidateT.refute $ Set.singleton depName
 
-    pure old{constraint, origins = old.origins <> new.origins}
+    pure old{constraint, origins = old.origins <> toOrigin range}
 
-  toPackageResolveState (range, compiledRange) =
+  toPackageResolveState _ (range, compiledRange) =
     PackageResolveState
       { constraint = compiledRange
       , locked = False
-      , origins =
-          NonEmpty.singleton $
-            PackageOrigin
-              { package = Just pkgId
-              , range = range
-              }
+      , origins = toOrigin range
       }
+  toOrigin range =
+    NonEmpty.singleton $
+      PackageOrigin
+        { package = Just pkgId
+        , range
+        }
 
 {----- Validation -----}
 
